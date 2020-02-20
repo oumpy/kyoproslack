@@ -1,0 +1,3 @@
+#!/bin/sh
+last_month=$(expr $(date '+%-m') - 1); [ $last_month -eq 0 ] && last_month=12
+echo $last_month
