@@ -42,7 +42,7 @@ Botとして運用する場合は、crontabに記述して定時に動かすと�
 0       6       *       *       1       acrank.py week 先週
 0       21      *       *       4       acrank.py week 今週 --inprogress
 30      20      *       *       6       acrank.py week 今週 --inprogress --mute
-1       6       1       *       *       acrank.py month `lastmonth`月
+0       6       1       *       *       sleep 10 && acrank.py month `lastmonth`月
 ```
 
 ### オプション
