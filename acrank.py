@@ -33,6 +33,7 @@ N_ranking = 5
 post_format = {
     'post_header_format' : '*【%sのAtCoder ACランキング】*',
     'post_line_format' : '%d位：%s<@%s>  (%d問 %d点)', # rank, mark, slackid, ac, point
+    'post_remain_format' : 'AC1問以上：%s',
     'post_nobody' : '1問も解いた人がいませんでした :scream:',
     'post_footer_format' : '\n＊優勝＊は %s！ :tada:', # winner
     'rank_marks' : [':first_place_medal:',':second_place_medal:',':third_place_medal:'],
@@ -75,6 +76,9 @@ if __name__ == '__main__':
     parser.add_argument('--noslack', help='do not post to slack.',
                         action='store_true')
     parser.add_argument('--mute', help='post in thread without showing on channel.',
+                        action='store_true')
+    parser.add_argument('-a', '--allsolvers',
+                        help='show everyone who solved one or more.',
                         action='store_true')
     parser.add_argument('-n', '--nranks', type=int, default=N_ranking,
                         help='how many rankers?')
@@ -167,23 +171,31 @@ if __name__ == '__main__':
         if accomp_list[i][1:] == accomp_list[i-1][1:-1]:
             accomp_list[i].append(rank)
         elif i >= N_ranking and (args.sufficiency <= 0 or accomp_list[i][1] < args.sufficiency):
-            accomp_list = accomp_list[:i]
+            ranking_list = accomp_list[:i]
+            remain_list = accomp_list[i:]
             break
         else:
             rank = i+1
             accomp_list[i].append(rank)
+    else:
+        ranking_list = accomp_list
+        remain_list = []
 
     post_lines = [post_header]
-    winners_list = []
+    winners_str_list = []
     if N > 0:
-        for atcoderid, ac, point, rank in accomp_list:
+        for atcoderid, ac, point, rank in ranking_list:
             slackid = member_info[atcoderid]['slackid']
             post_lines.append(post_line_format % (rank, rank_marks[rank-1], slackid, ac, point))
             if rank == 1:
-                winners_list.append(rank_marks[0]+'<@%s> さん' % slackid)
-        winners_str = '、'.join(winners_list)
+                winners_str_list.append(rank_marks[0]+'<@%s> さん' % slackid)
+        if remain_list and args.allsolvers:
+            remain_str_list = [ '<@%s>' % member_info[x[0]]['slackid'] for x in remain_list ]
+            post_lines.append(
+                post_remain_format % '、'.join(remain_str_list)
+            )
         post_lines.append(
-            post_footer_format % winners_str
+            post_footer_format % '、'.join(winners_str_list)
         )
     else:
         post_lines.append(post_nobody)

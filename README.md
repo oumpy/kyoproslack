@@ -39,7 +39,7 @@ Botとして運用する場合は、crontabに記述して定時に動かすと�
 
 ```bash
 #min    hour    day     month   week    command
-0       6       *       *       1       acrank.py week 先週
+0       6       *       *       1       acrank.py week 先週 -a
 0       21      *       *       4       acrank.py week 今週 --inprogress
 30      20      *       *       6       acrank.py week 今週 --inprogress --mute
 0       6       1       *       *       sleep 10 && acrank.py month `lastmonth`月
@@ -53,6 +53,7 @@ Botとして運用する場合は、crontabに記述して定時に動かすと�
 - `-c (channel name)`：投稿するチャネルを指定する。デフォルトは`'competition'`。
 - `-n (integer)`：指定した順位までをランキング。デフォルトは5。
 - `-s (integer)`：指定した問題数以上を解いていれば、順位に関わらずランクインとする。`0`を指定した場合は何も効力がない。
+- `-a` / `--allsolvers`：1問以上解いた人はランク外も名前のみ発表。
 
 ### 補助スクリプト
 
