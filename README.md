@@ -61,4 +61,10 @@ Botとして運用する場合は、crontabに記述して定時に動かすと�
 
 - `thismonth`：今月は何月か（例：2、12など）を表示する。
 - `lastmonth`：先月は何月だったかを表示する。1月に実行すると12。
+- `showmonth.py`：さらに高機能なPythonスクリプト。デフォルト動作は`this_month`と同じ。以下のオプションあり。
+  - `-p` / `--prev`：前月。単独で指定すると`last_month`と同じ。
+  - `-n` / `--next`：来月。
+  - `-a (integer)` / `--after (integer)`：何ヶ月後かを指定。負の数もOK。
+  - `--set_month (integer)`：現在ではなく指定した月を起点にする。
+  - `-s` / `--slacksymbol`：Slack用に各月のシンボルを添えて出力。`:bamboo: 1`、`:christmas_tree:12`など。
 
