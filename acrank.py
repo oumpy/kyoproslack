@@ -91,6 +91,8 @@ if __name__ == '__main__':
                         help='set sufficient ACs to show in the ranking.')
     parser.add_argument('-c', '--channel', default=channel_name,
                         help='slack channel to post.')
+    parser.add_argument('--slacktoken', default=None,
+                        help='slack bot token.')
     args = parser.parse_args()
 
     last_rec_file = last_rec_file_format % args.cycle
@@ -208,8 +210,11 @@ if __name__ == '__main__':
 
     if post_to_slack:
         if len(user_last_scores) > 0:
-            with open(slacktoken_file_path, 'r') as f:
-                token = f.readline()
+            if args.slacktoken:
+                token = args.slacktoken
+            else:
+                with open(slacktoken_file_path, 'r') as f:
+                    token = f.readline()
             web_client = WebClient(token=token)
             channel_id = get_channel_id(web_client, channel_name)
             params={
