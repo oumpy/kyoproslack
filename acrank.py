@@ -47,8 +47,13 @@ post_format_inprogress = {
     'other_mark' : '',
 }
 
-def get_channel_list(client):
-    channels = client.api_call('channels.list')
+def get_channel_list(client, limit=200):
+    params = {
+        'exclude_archived': 'true',
+        'types': 'public_channel',
+        'limit': str(limit),
+        }
+    channels = client.api_call('conversations.list', params=params)
     if channels['ok']:
         return channels['channels']
     else:
