@@ -214,7 +214,7 @@ if __name__ == '__main__':
                 token = args.slacktoken
             else:
                 with open(slacktoken_file_path, 'r') as f:
-                    token = f.readline()
+                    token = f.readline().rstrip()
             web_client = WebClient(token=token)
             channel_id = get_channel_id(web_client, channel_name)
             params={
