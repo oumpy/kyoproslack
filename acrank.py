@@ -85,6 +85,9 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--allsolvers',
                         help='show everyone who solved one or more.',
                         action='store_true')
+    parser.add_argument('--newthread',
+                        help='finish the previous thread and make a new one.',
+                        action='store_true')
     parser.add_argument('-n', '--nranks', type=int, default=N_ranking,
                         help='how many rankers?')
     parser.add_argument('-s', '--sufficiency', type=int, default=0,
@@ -224,7 +227,7 @@ if __name__ == '__main__':
                 #'reply_broadcast': reply_broadcast,
             }
             os.chdir(rec_dir)
-            if os.path.isfile(ts_file):
+            if os.path.isfile(ts_file) and (not args.newthread):
                 with open(ts_file, 'r') as f:
                     ts = f.readline().rstrip()
                     params['thread_ts'] = ts
@@ -237,12 +240,10 @@ if __name__ == '__main__':
                 params=params
             )
             posted_data = response.data
-            if ts is None and args.inprogress:
+            if ts is None:
                 ts = posted_data['ts']
                 with open(ts_file, 'w') as f:
                     print(ts, file=f)
-            elif args.inprogress == False and os.path.isfile(ts_file):
-                os.remove(ts_file)
     else:
         print(message)
 
