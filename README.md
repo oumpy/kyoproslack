@@ -1,0 +1,2 @@
+# atcoder_notify
+atcoderの新着コンテストのリンクをslackに投げる
