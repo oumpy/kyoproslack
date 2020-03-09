@@ -226,7 +226,7 @@ if __name__ == '__main__':
             os.chdir(rec_dir)
             if os.path.isfile(ts_file):
                 with open(ts_file, 'r') as f:
-                    ts = f.readline()
+                    ts = f.readline().rstrip()
                     params['thread_ts'] = ts
                     if not args.mute:
                         params['reply_broadcast'] = 'True'
