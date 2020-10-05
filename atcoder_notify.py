@@ -16,7 +16,7 @@ url_root  = "https://atcoder.jp"
 
 upcoming_contests = content.find('div',id="contest-table-upcoming")
 if upcoming_contests == None:#予定されたコンテストが無ければ、終了
-    print("予定されたコンテストはありません。")
+    # print("予定されたコンテストはありません。")
     sys.exit()
 upcoming_contests = upcoming_contests.find("div",class_ ="panel panel-default").find("tbody")
 upcoming_contests = upcoming_contests.find_all("tr")
@@ -52,6 +52,3 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
 
 for info in get_contest_info(upcoming_contests):
     print(info)
-
-recent_contests = content.find('div',id='contest-table-recent').find("div",class_ ="panel panel-default").find("tbody")
-recent_contests = recent_contests.find_all("tr")
