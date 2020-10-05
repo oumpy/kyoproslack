@@ -23,17 +23,19 @@ upcoming_contests = upcoming_contests.find_all("tr")
 url_root  = "https://atcoder.jp"
 import urllib.parse
 
-def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,name,link)のlistを返す。
+def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,duration,name,link)のlistを返す。
     infos =[]
     for i in upcoming_contests:
         date = i.find("td",class_ = "text-center").find("a").text
         #print(date)
+        duration = i.find_all("td")[2].text
+        #print(duration)
         name = i.find_all("td")[1].find("a").text
         #print(name)
         link = i.find_all("td")[1].find("a").get("href")
         link = urllib.parse.urljoin(url_root,link)
         #print(link)
-        infos.append((date,name,link))
+        infos.append((date,duration,name,link))
     return infos
 
 for info in get_contest_info(upcoming_contests):
