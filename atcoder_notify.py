@@ -7,6 +7,8 @@ import re
 import urllib.parse
 import sys
 import datetime
+import locale
+locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
 #print(soup.body)
