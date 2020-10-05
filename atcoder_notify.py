@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup as bs
 import re
 import urllib.parse
 import sys
+import datetime
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
 #print(soup.body)
@@ -50,5 +51,26 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
         infos.append((date,duration,name,link,grade,rated))
     return infos
 
+def info2post(info):
+    date, duration, name, link, grade, rated = info
+    start_datetime = datetime.datetime.strptime(date, '%Y-%m-%d %H:%M:%S%z')
+    start_str = start_datetime.strftime('%Y-%m-%d(%a) %H:%M')
+    duration_hours, duration_minutes = map(int,duration.split(':'))
+    end_datetime = (start_datetime + datetime.timedelta(hours=duration_hours, minutes=duration_minutes))
+    if start_datetime.date() == end_datetime.date():
+        end_str = end_datetime.strftime('%H:%M')
+    else:
+        end_str = end_datetime.strftime('%Y-%m-%d(%a) %H:%M')
+    date_line = '{}-{}'.format(start_str, end_str)
+    rated_line = 'rated: {}'.format(rated.strip())
+
+    # if re.match(r'^AtCoder (Beginner|Regular|Grand) Contest', name):
+    #     display_name = name
+    # else:
+    #     display_name = '{} [{}]'.format(name, grade)
+
+    post_message = '\n'.join([name, date_line, link, rated_line])
+    return post_message
+
 for info in get_contest_info(upcoming_contests):
-    print(info)
+    print(info2post(info))
