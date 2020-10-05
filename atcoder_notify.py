@@ -55,18 +55,3 @@ for info in get_contest_info(upcoming_contests):
 
 recent_contests = content.find('div',id='contest-table-recent').find("div",class_ ="panel panel-default").find("tbody")
 recent_contests = recent_contests.find_all("tr")
-print(len(recent_contests))
-for i in recent_contests:
-    #print(i)
-    #print("ここで区切り")
-    date = i.find("td",class_ = "text-center").find("a").text
-    print(date)
-    print("~~~~~~~~~~~~~~~~~~~~~~~")
-    name = i.find_all("td")[1].find("a").text
-    print(name)
-    link = i.find_all("td")[1].find("a").get("href")
-    link = urllib.parse.urljoin(url_root,link)
-    print("~~~~~~~~~~~~~~~~~~~~~~~")
-
-    print(link)
-    break
