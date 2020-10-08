@@ -6,6 +6,9 @@ from bs4 import BeautifulSoup as bs
 import re
 import urllib.parse
 import sys
+import datetime
+import locale
+locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
 #print(soup.body)
@@ -16,7 +19,7 @@ url_root  = "https://atcoder.jp"
 
 upcoming_contests = content.find('div',id="contest-table-upcoming")
 if upcoming_contests == None:#予定されたコンテストが無ければ、終了
-    print("予定されたコンテストはありません。")
+    # print("予定されたコンテストはありません。")
     sys.exit()
 upcoming_contests = upcoming_contests.find("div",class_ ="panel panel-default").find("tbody")
 upcoming_contests = upcoming_contests.find_all("tr")
@@ -50,23 +53,26 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
         infos.append((date,duration,name,link,grade,rated))
     return infos
 
-for info in get_contest_info(upcoming_contests):
-    print(info)
+def info2post(info):
+    date, duration, name, link, grade, rated = info
+    start_datetime = datetime.datetime.strptime(date, '%Y-%m-%d %H:%M:%S%z')
+    start_str = start_datetime.strftime('%Y-%m-%d(%a) %H:%M')
+    duration_hours, duration_minutes = map(int,duration.split(':'))
+    end_datetime = (start_datetime + datetime.timedelta(hours=duration_hours, minutes=duration_minutes))
+    if start_datetime.date() == end_datetime.date():
+        end_str = end_datetime.strftime('%H:%M')
+    else:
+        end_str = end_datetime.strftime('%Y-%m-%d(%a) %H:%M')
+    date_line = '{}-{}'.format(start_str, end_str)
+    rated_line = 'rated: {}'.format(rated.strip())
 
-recent_contests = content.find('div',id='contest-table-recent').find("div",class_ ="panel panel-default").find("tbody")
-recent_contests = recent_contests.find_all("tr")
-print(len(recent_contests))
-for i in recent_contests:
-    #print(i)
-    #print("ここで区切り")
-    date = i.find("td",class_ = "text-center").find("a").text
-    print(date)
-    print("~~~~~~~~~~~~~~~~~~~~~~~")
-    name = i.find_all("td")[1].find("a").text
-    print(name)
-    link = i.find_all("td")[1].find("a").get("href")
-    link = urllib.parse.urljoin(url_root,link)
-    print("~~~~~~~~~~~~~~~~~~~~~~~")
+    # if re.match(r'^AtCoder (Beginner|Regular|Grand) Contest', name):
+    #     display_name = name
+    # else:
+    #     display_name = '{} [{}]'.format(name, grade)
 
-    print(link)
-    break
+    post_message = '\n'.join([name, date_line, link, rated_line])
+    return post_message
+
+message = '\n######\n'.join([info2post(info) for info in get_contest_info(upcoming_contests)])
+print(message)
