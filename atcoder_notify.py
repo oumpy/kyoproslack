@@ -61,9 +61,10 @@ def info2post(info):
     end_datetime = (start_datetime + datetime.timedelta(hours=duration_hours, minutes=duration_minutes))
     if start_datetime.date() == end_datetime.date():
         end_str = end_datetime.strftime('%H:%M')
+        date_line = '{}-{}'.format(start_str, end_str)
     else:
         end_str = end_datetime.strftime('%Y-%m-%d(%a) %H:%M')
-    date_line = '{}-{}'.format(start_str, end_str)
+        date_line = '{} - {}'.format(start_str, end_str)
     rated_line = 'rated: {}'.format(rated.strip())
 
     # if re.match(r'^AtCoder (Beginner|Regular|Grand) Contest', name):
