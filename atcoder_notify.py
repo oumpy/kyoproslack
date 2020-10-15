@@ -75,4 +75,5 @@ def info2post(info):
     return post_message
 
 message = '\n######\n'.join([info2post(info) for info in get_contest_info(upcoming_contests)])
-print(message)
+if message:
+    print(message)
