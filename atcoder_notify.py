@@ -88,10 +88,11 @@ if os.path.isfile('diff_info.pickle'):
         diff_info = pickle.load(f)
 else:
     diff_info = []
-upcoming_contests_info = list(set(get_contest_info(upcoming_contests))-set(diff_info))
-message = '\n######\n'.join([info2post(info) for info in upcoming_contests_info])
+upcoming_contests_info = get_contest_info(upcoming_contests)
+new_contests_info = list(set(upcoming_contests_info)-set(diff_info))
+message = '\n######\n'.join([info2post(info) for info in new_contests_info])
 print(message)
 
 ##現時点での開催予定コンテストを保存
 with open('diff_info.pickle', 'wb') as f:
-    pickle.dump(get_contest_info(upcoming_contests), f)
+    pickle.dump(upcoming_contests_info, f)
