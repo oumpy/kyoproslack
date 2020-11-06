@@ -12,6 +12,9 @@ import locale
 import urllib.parse
 import pickle
 locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
+
+diff_info_filename = 'diff_info.pickle'
+
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
 #print(soup.body)
@@ -83,8 +86,8 @@ def info2post(info):
 ##前回の実行時の予定コンテスト情報をpickleで保存
 #前回差分fileがあれば読み込み
 ##前回との差分をとる
-if os.path.isfile('diff_info.pickle'):
-    with open('diff_info.pickle', 'rb') as f:
+if os.path.isfile(diff_info_filename):
+    with open(diff_info_filename, 'rb') as f:
         diff_info = pickle.load(f)
 else:
     diff_info = []
@@ -94,5 +97,5 @@ message = '\n######\n'.join([info2post(info) for info in new_contests_info])
 print(message)
 
 ##現時点での開催予定コンテストを保存
-with open('diff_info.pickle', 'wb') as f:
+with open(diff_info_filename, 'wb') as f:
     pickle.dump(upcoming_contests_info, f)
