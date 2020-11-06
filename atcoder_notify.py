@@ -56,6 +56,7 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
         rated = i.find_all("td")[3].text
         #print(rated)
         infos.append((date,duration,name,link,grade,rated))
+        infos.sort()
     return infos
 
 def info2post(info):
@@ -88,11 +89,11 @@ def info2post(info):
 ##前回との差分をとる
 if os.path.isfile(diff_info_filename):
     with open(diff_info_filename, 'rb') as f:
-        diff_info = pickle.load(f)
+        diff_info = set(pickle.load(f))
 else:
-    diff_info = []
+    diff_info = set()
 upcoming_contests_info = get_contest_info(upcoming_contests)
-new_contests_info = list(set(upcoming_contests_info)-set(diff_info))
+new_contests_info = [ info for info in upcoming_contests_info if not info in diff_info ]
 message = '\n######\n'.join([info2post(info) for info in new_contests_info])
 print(message)
 
