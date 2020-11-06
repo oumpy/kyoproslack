@@ -9,6 +9,8 @@ import urllib.parse
 import sys
 import datetime
 import locale
+import urllib.parse
+import pickle
 locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
@@ -25,10 +27,6 @@ if upcoming_contests == None:#予定されたコンテストが無ければ、�
 upcoming_contests = upcoming_contests.find("div",class_ ="panel panel-default").find("tbody")
 upcoming_contests = upcoming_contests.find_all("tr")
 url_root  = "https://atcoder.jp"
-import urllib.parse
-
-
-
 
 def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,duration,name,link,grade,rated)のlistを返す。
     infos =[]
@@ -82,7 +80,6 @@ def info2post(info):
 # for info in get_contest_info(upcoming_contests):
 #     print(info)
 
-import pickle
 ##前回の実行時の予定コンテスト情報をpickleで保存
 #前回差分fileがあれば読み込み
 ##前回との差分をとる
@@ -95,8 +92,6 @@ upcoming_contests_info = list(set(get_contest_info(upcoming_contests))-set(diff_
 message = '\n######\n'.join([info2post(info) for info in upcoming_contests_info])
 print(message)
 
-
 ##現時点での開催予定コンテストを保存
-
 with open('diff_info.pickle', 'wb') as f:
     pickle.dump(get_contest_info(upcoming_contests), f)
