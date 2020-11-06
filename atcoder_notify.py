@@ -79,8 +79,8 @@ def info2post(info):
     return post_message
 
 ##これは前回との差分を考慮していないもの
-for info in get_contest_info(upcoming_contests):
-    print(info)
+# for info in get_contest_info(upcoming_contests):
+#     print(info)
 
 import pickle
 ##前回の実行時の予定コンテスト情報をpickleで保存
@@ -89,13 +89,10 @@ import pickle
 if os.path.isfile('diff_info.pickle'):
     with open('diff_info.pickle', 'rb') as f:
         diff_info = pickle.load(f)
-    upcoming_contests_info = list(set(get_contest_info(upcoming_contests))-set(diff_info))
-    if len(upcoming_contests_info)==0:
-        print("前回から新規に生えたコンテストはありません")
-    for info_ in upcoming_contests_info:
-        print("new!!!!",info_)
-
-message = '\n######\n'.join([info2post(info) for info in get_contest_info(upcoming_contests)])
+else:
+    diff_info = []
+upcoming_contests_info = list(set(get_contest_info(upcoming_contests))-set(diff_info))
+message = '\n######\n'.join([info2post(info) for info in upcoming_contests_info])
 print(message)
 
 
