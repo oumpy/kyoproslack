@@ -16,22 +16,24 @@ locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 diff_info_filename = 'diff_info.pickle'
 rated_only = True
 scope_days = 10 # None : inifinite
-
-r=requests.get("https://atcoder.jp/contests/")
-soup=bs(r.text,"lxml")
-#print(soup.body)
-
-content = soup.body.find('div',id='main-div').find('div',id='main-container').find('div',class_='row')
-content = content.find('div',class_='col-lg-9 col-md-8')
 url_root  = "https://atcoder.jp"
+url_contests = "https://atcoder.jp/contests/"
 
-upcoming_contests = content.find('div',id="contest-table-upcoming")
-if upcoming_contests == None:#予定されたコンテストが無ければ、終了
-    # print("予定されたコンテストはありません。")
-    sys.exit()
-upcoming_contests = upcoming_contests.find("div",class_ ="panel panel-default").find("tbody")
-upcoming_contests = upcoming_contests.find_all("tr")
-url_root  = "https://atcoder.jp"
+def get_upcoming_contests():
+    r=requests.get(url_contests)
+    soup=bs(r.text,"lxml")
+    #print(soup.body)
+
+    content = soup.body.find('div',id='main-div').find('div',id='main-container').find('div',class_='row')
+    content = content.find('div',class_='col-lg-9 col-md-8')
+
+    upcoming_contests = content.find('div',id="contest-table-upcoming")
+    if upcoming_contests == None:#予定されたコンテストが無ければ、終了
+        # print("予定されたコンテストはありません。")
+        sys.exit()
+    upcoming_contests = upcoming_contests.find("div",class_ ="panel panel-default").find("tbody")
+    upcoming_contests = upcoming_contests.find_all("tr")
+    return url_root
 
 def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,duration,name,link,grade,rated)のlistを返す。
     infos =[]
