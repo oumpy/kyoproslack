@@ -84,11 +84,6 @@ def info2post(info):
     post_message = '\n'.join([name, date_line, link, rated_line])
     return post_message
 
-<<<<<<< HEAD
-message = '\n######\n'.join([info2post(info) for info in get_contest_info(upcoming_contests)])
-if message:
-    print(message)
-=======
 ##これは前回との差分を考慮していないもの
 # for info in get_contest_info(upcoming_contests):
 #     print(info)
@@ -110,4 +105,3 @@ if message:
 ##現時点での開催予定コンテストを保存
 with open(diff_info_filename, 'wb') as f:
     pickle.dump(upcoming_contests_info, f)
->>>>>>> d45d1819d850ce6a1769c5fde855cac16be5b5bb
