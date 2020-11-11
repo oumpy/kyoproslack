@@ -15,6 +15,7 @@ locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 
 diff_info_filename = 'diff_info.pickle'
 rated_only = True
+scope_days = 10 # None : inifinite
 
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
@@ -34,9 +35,18 @@ url_root  = "https://atcoder.jp"
 
 def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,duration,name,link,grade,rated)のlistを返す。
     infos =[]
+    if scope_days is None:
+        scope_until = None
+    else:
+        scope_until = datetime.datetime.now() + datetime.timedelta(days=scope_days)
+
     for i in upcoming_contests:
         date = i.find("td",class_ = "text-center").find("a").text
         #print(date)
+        if scope_until is not None:
+            start_datetime = datetime.datetime.strptime(date, '%Y-%m-%d %H:%M:%S%z')
+            if start_datetime > scope_until:
+                continue
         duration = i.find_all("td")[2].text
         #print(duration)
         contest_color = str(i.find_all("td")[1].find("span")).split('"')[1]
