@@ -4,11 +4,17 @@
 import requests
 from bs4 import BeautifulSoup as bs
 import re
+import os
 import urllib.parse
 import sys
 import datetime
 import locale
+import urllib.parse
+import pickle
 locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
+
+diff_info_filename = 'diff_info.pickle'
+
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
 #print(soup.body)
@@ -24,7 +30,6 @@ if upcoming_contests == None:#予定されたコンテストが無ければ、�
 upcoming_contests = upcoming_contests.find("div",class_ ="panel panel-default").find("tbody")
 upcoming_contests = upcoming_contests.find_all("tr")
 url_root  = "https://atcoder.jp"
-import urllib.parse
 
 def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,duration,name,link,grade,rated)のlistを返す。
     infos =[]
@@ -51,6 +56,7 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
         rated = i.find_all("td")[3].text
         #print(rated)
         infos.append((date,duration,name,link,grade,rated))
+        infos.sort()
     return infos
 
 def info2post(info):
@@ -75,6 +81,30 @@ def info2post(info):
     post_message = '\n'.join([name, date_line, link, rated_line])
     return post_message
 
+<<<<<<< HEAD
 message = '\n######\n'.join([info2post(info) for info in get_contest_info(upcoming_contests)])
 if message:
     print(message)
+=======
+##これは前回との差分を考慮していないもの
+# for info in get_contest_info(upcoming_contests):
+#     print(info)
+
+##前回の実行時の予定コンテスト情報をpickleで保存
+#前回差分fileがあれば読み込み
+##前回との差分をとる
+if os.path.isfile(diff_info_filename):
+    with open(diff_info_filename, 'rb') as f:
+        diff_info = set(pickle.load(f))
+else:
+    diff_info = set()
+upcoming_contests_info = get_contest_info(upcoming_contests)
+new_contests_info = [ info for info in upcoming_contests_info if not info in diff_info ]
+message = '\n######\n'.join([info2post(info) for info in new_contests_info])
+if message:
+    print(message)
+
+##現時点での開催予定コンテストを保存
+with open(diff_info_filename, 'wb') as f:
+    pickle.dump(upcoming_contests_info, f)
+>>>>>>> d45d1819d850ce6a1769c5fde855cac16be5b5bb
