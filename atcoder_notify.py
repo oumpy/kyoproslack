@@ -40,7 +40,7 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
     if scope_days is None:
         scope_until = None
     else:
-        scope_until = datetime.datetime.now() + datetime.timedelta(days=scope_days)
+        scope_until = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=scope_days)
 
     for i in upcoming_contests:
         date = i.find("td",class_ = "text-center").find("a").text
