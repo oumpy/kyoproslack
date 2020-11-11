@@ -101,7 +101,8 @@ else:
 upcoming_contests_info = get_contest_info(upcoming_contests)
 new_contests_info = [ info for info in upcoming_contests_info if not info in diff_info ]
 message = '\n######\n'.join([info2post(info) for info in new_contests_info])
-print(message)
+if message:
+    print(message)
 
 ##現時点での開催予定コンテストを保存
 with open(diff_info_filename, 'wb') as f:
