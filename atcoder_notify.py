@@ -14,6 +14,7 @@ import pickle
 locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 
 diff_info_filename = 'diff_info.pickle'
+rated_only = True
 
 r=requests.get("https://atcoder.jp/contests/")
 soup=bs(r.text,"lxml")
@@ -55,6 +56,8 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
         #print(link)
         rated = i.find_all("td")[3].text
         #print(rated)
+        if rated_only and rated.strip() == '-':
+            continue
         infos.append((date,duration,name,link,grade,rated))
         infos.sort()
     return infos
