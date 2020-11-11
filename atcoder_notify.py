@@ -67,9 +67,10 @@ def info2post(info):
     end_datetime = (start_datetime + datetime.timedelta(hours=duration_hours, minutes=duration_minutes))
     if start_datetime.date() == end_datetime.date():
         end_str = end_datetime.strftime('%H:%M')
+        date_line = '{}-{}'.format(start_str, end_str)
     else:
         end_str = end_datetime.strftime('%Y-%m-%d(%a) %H:%M')
-    date_line = '{}-{}'.format(start_str, end_str)
+        date_line = '{} - {}'.format(start_str, end_str)
     rated_line = 'rated: {}'.format(rated.strip())
 
     # if re.match(r'^AtCoder (Beginner|Regular|Grand) Contest', name):
@@ -95,7 +96,8 @@ else:
 upcoming_contests_info = get_contest_info(upcoming_contests)
 new_contests_info = [ info for info in upcoming_contests_info if not info in diff_info ]
 message = '\n######\n'.join([info2post(info) for info in new_contests_info])
-print(message)
+if message:
+    print(message)
 
 ##現時点での開催予定コンテストを保存
 with open(diff_info_filename, 'wb') as f:
