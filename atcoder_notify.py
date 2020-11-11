@@ -33,7 +33,7 @@ def get_upcoming_contests():
         sys.exit()
     upcoming_contests = upcoming_contests.find("div",class_ ="panel panel-default").find("tbody")
     upcoming_contests = upcoming_contests.find_all("tr")
-    return url_root
+    return upcoming_contests
 
 def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,duration,name,link,grade,rated)のlistを返す。
     infos =[]
@@ -108,6 +108,7 @@ if os.path.isfile(diff_info_filename):
         diff_info = set(pickle.load(f))
 else:
     diff_info = set()
+upcoming_contests = get_upcoming_contests()
 upcoming_contests_info = get_contest_info(upcoming_contests)
 new_contests_info = [ info for info in upcoming_contests_info if not info in diff_info ]
 message = '\n######\n'.join([info2post(info) for info in new_contests_info])
