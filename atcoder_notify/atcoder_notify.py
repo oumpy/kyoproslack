@@ -11,6 +11,7 @@ import datetime
 import locale
 import urllib.parse
 import pickle
+import argparse
 locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 
 diff_info_filename = 'diff_info.pickle'
@@ -98,6 +99,18 @@ def info2post(info):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--scopedays', type=int, default=scope_days,
+                        help='days to scope, default={}.'.format(scope_days))
+    parser.add_argument('--ratedonly', type=bool, default=rated_only,
+                        help='pick-up only rated contests, default={}.'.format(rated_only))
+    parser.add_argument('--savefile', default=diff_info_filename,
+                        help='filename to load & save, default={}.'.format(diff_info_filename))
+    args = parser.parse_args()
+    scope_days = args.scopedays
+    rated_only = args.ratedonly
+    diff_info_filename = args.savefile
+
     ##これは前回との差分を考慮していないもの
     # for info in get_contest_info(upcoming_contests):
     #     print(info)
