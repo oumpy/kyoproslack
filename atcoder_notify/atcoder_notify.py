@@ -96,25 +96,27 @@ def info2post(info):
     post_message = '\n'.join([name, date_line, link, rated_line])
     return post_message
 
-##これは前回との差分を考慮していないもの
-# for info in get_contest_info(upcoming_contests):
-#     print(info)
 
-##前回の実行時の予定コンテスト情報をpickleで保存
-#前回差分fileがあれば読み込み
-##前回との差分をとる
-if os.path.isfile(diff_info_filename):
-    with open(diff_info_filename, 'rb') as f:
-        diff_info = set(pickle.load(f))
-else:
-    diff_info = set()
-upcoming_contests = get_upcoming_contests()
-upcoming_contests_info = get_contest_info(upcoming_contests)
-new_contests_info = [ info for info in upcoming_contests_info if not info in diff_info ]
-message = '\n######\n'.join([info2post(info) for info in new_contests_info])
-if message:
-    print(message)
+if __name__ == '__main__':
+    ##これは前回との差分を考慮していないもの
+    # for info in get_contest_info(upcoming_contests):
+    #     print(info)
 
-##現時点での開催予定コンテストを保存
-with open(diff_info_filename, 'wb') as f:
-    pickle.dump(upcoming_contests_info, f)
+    ##前回の実行時の予定コンテスト情報をpickleで保存
+    #前回差分fileがあれば読み込み
+    ##前回との差分をとる
+    if os.path.isfile(diff_info_filename):
+        with open(diff_info_filename, 'rb') as f:
+            diff_info = set(pickle.load(f))
+    else:
+        diff_info = set()
+    upcoming_contests = get_upcoming_contests()
+    upcoming_contests_info = get_contest_info(upcoming_contests)
+    new_contests_info = [ info for info in upcoming_contests_info if not info in diff_info ]
+    message = '\n######\n'.join([info2post(info) for info in new_contests_info])
+    if message:
+        print(message)
+
+    ##現時点での開催予定コンテストを保存
+    with open(diff_info_filename, 'wb') as f:
+        pickle.dump(upcoming_contests_info, f)
