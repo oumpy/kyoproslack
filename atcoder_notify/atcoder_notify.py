@@ -10,10 +10,10 @@ import sys
 import datetime
 import locale
 import urllib.parse
-import pickle
+import json
 locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 
-diff_info_filename = 'diff_info.pickle'
+diff_info_filename = 'diff_info.json'
 rated_only = True
 scope_days = 10 # None : inifinite
 url_root  = "https://atcoder.jp"
@@ -102,12 +102,12 @@ if __name__ == '__main__':
     # for info in get_contest_info(upcoming_contests):
     #     print(info)
 
-    ##前回の実行時の予定コンテスト情報をpickleで保存
+    ##前回の実行時の予定コンテスト情報をjsonで保存
     #前回差分fileがあれば読み込み
     ##前回との差分をとる
     if os.path.isfile(diff_info_filename):
-        with open(diff_info_filename, 'rb') as f:
-            diff_info = set(pickle.load(f))
+        with open(diff_info_filename, 'r') as f:
+            diff_info = set([tuple(rec) for rec in json.load(f)['upcoming']])
     else:
         diff_info = set()
     upcoming_contests = get_upcoming_contests()
@@ -118,5 +118,5 @@ if __name__ == '__main__':
         print(message)
 
     ##現時点での開催予定コンテストを保存
-    with open(diff_info_filename, 'wb') as f:
-        pickle.dump(upcoming_contests_info, f)
+    with open(diff_info_filename, 'w') as f:
+        json.dump({'upcoming': upcoming_contests_info}, f, indent=4)
