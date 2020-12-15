@@ -117,6 +117,13 @@ if __name__ == '__main__':
     last_rec_file_path = rec_dir + last_rec_file
     slacktoken_file_path = base_dir + slacktoken_file
 
+    if args.slacktoken:
+        token = args.slacktoken
+    else:
+        with open(slacktoken_file_path, 'r') as f:
+            token = f.readline().rstrip()
+    web_client = WebClient(token=token)
+
     # read member list
     member_info = defaultdict(dict)
     with open(userlist_file_path, 'r') as f:
@@ -213,12 +220,6 @@ if __name__ == '__main__':
 
     if post_to_slack:
         if len(user_last_scores) > 0:
-            if args.slacktoken:
-                token = args.slacktoken
-            else:
-                with open(slacktoken_file_path, 'r') as f:
-                    token = f.readline().rstrip()
-            web_client = WebClient(token=token)
             channel_id = get_channel_id(web_client, channel_name)
             params={
                 'channel': channel_id,
