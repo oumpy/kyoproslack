@@ -125,13 +125,15 @@ if __name__ == '__main__':
     web_client = WebClient(token=token)
 
     # read member list
+    slack_members = set([ member['id'] for member in web_client.api_call('users.list')['members'] if not member['deleted']])
     member_info = defaultdict(dict)
     with open(userlist_file_path, 'r') as f:
         lines = f.readlines()
         for line in lines:
             nickname, slackid, atcoderid = line.rstrip().split('\t')[:3]
-            member_info[atcoderid]['nickname'] = nickname
-            member_info[atcoderid]['slackid'] = slackid
+            if slackid in slack_members:
+                member_info[atcoderid]['nickname'] = nickname
+                member_info[atcoderid]['slackid'] = slackid
     atcoder_ids = set(member_info.keys())
 
     # read the previous record
