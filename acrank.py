@@ -176,7 +176,7 @@ if __name__ == '__main__':
     
     # compute differences from last time
     accomp_list = []
-    for atcoderid in user_last_scores.keys():
+    for atcoderid in user_scores.keys():
         if user_scores[atcoderid][recordnames[0]] > user_last_scores[atcoderid][recordnames[0]]:
             accomp_list.append([
                 atcoderid,
@@ -221,7 +221,7 @@ if __name__ == '__main__':
     message = '\n'.join(post_lines)
 
     if post_to_slack:
-        if len(user_last_scores) > 0:
+        if len(user_scores) > 0:
             channel_id = get_channel_id(web_client, channel_name)
             params={
                 'channel': channel_id,
