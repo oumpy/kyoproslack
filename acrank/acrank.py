@@ -54,7 +54,7 @@ def get_channel_list(client, limit=200):
         'limit': str(limit),
         }
     channels = client.api_call('conversations.list', params=params)
-    if channels['ok']:
+    if bool(channels['ok']):
         return channels['channels']
     else:
         return None
