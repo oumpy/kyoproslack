@@ -165,12 +165,12 @@ if __name__ == '__main__':
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
-            print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], file=f)
+            print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], sep='\t', file=f)
     # back-record new members' status
     if new_members:
         with open(last_rec_file_path, 'a') as f:
             for atcoderid in new_members:
-                print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], file=f)
+                print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], sep='\t', file=f)
     # print(user_last_scores)
     # print(user_scores)
     
