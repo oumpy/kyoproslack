@@ -71,6 +71,14 @@ def get_channel_id(client, channel_name):
     else:
         return target['id']
 
+def get_rating(atcoderid):
+    urlbase = 'https://atcoder.jp/users/{}/history/json/'
+    contest_record = requests.get(urlbase.format(atcoderid)).json()
+    if contest_record:
+        return contest_record[-1]['NewRating']
+    else:
+        return None
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('cycle') # e.g. 'week'
