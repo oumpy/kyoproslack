@@ -289,7 +289,7 @@ if __name__ == '__main__':
             if (cur is not None) and (prev is not None):
                 cc = cur // 400
                 pc = prev // 400
-                if cc > pc and cc > 0:
+                if max(pc,0) < cc < len(colors):
                     message = post_format['promotion'].format(
                         member_info[atcoderid]['slackid'],
                         colors[cc],
