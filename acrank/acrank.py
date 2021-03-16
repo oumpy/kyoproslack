@@ -28,7 +28,6 @@ urls = [
     'https://kenkoooo.com/atcoder/resources/ac.json',
     'https://kenkoooo.com/atcoder/resources/sums.json',
 ]
-recordnames = ['problem_count', 'point_sum']
 N_ranking = 5
 post_format = {
     'post_header_format' : '*【{}のAtCoder ACランキング】*',
@@ -144,8 +143,8 @@ if __name__ == '__main__':
             lines = f.readlines()
             for line in lines:
                 atcoderid, ac, point = line.rstrip().split()[:3]
-                user_last_scores[atcoderid][recordnames[0]] = int(ac)
-                user_last_scores[atcoderid][recordnames[1]] = int(point)
+                user_last_scores[atcoderid]['ac'] = int(ac)
+                user_last_scores[atcoderid]['point'] = int(point)
         new_members = atcoder_ids - set(user_last_scores.keys())
 
     # get the new status from atcoder problems
@@ -155,7 +154,7 @@ if __name__ == '__main__':
     user_scores = defaultdict(dict)
     for s in range(2):
         data = datasets[s]
-        recname = recordnames[s]
+        recname = ['ac', 'point'][s]
         L = len(data)
         for i in range(L):
             atcoderid = data[i]['user_id']
@@ -165,23 +164,23 @@ if __name__ == '__main__':
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
-            print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], sep='\t', file=f)
+            print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'],sep='\t', file=f)
     # back-record new members' status
     if new_members:
         with open(last_rec_file_path, 'a') as f:
             for atcoderid in new_members:
-                print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], sep='\t', file=f)
+                print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'], sep='\t', file=f)
     # print(user_last_scores)
     # print(user_scores)
     
     # compute differences from last time
     accomp_list = []
     for atcoderid in user_scores.keys():
-        if user_scores[atcoderid][recordnames[0]] > user_last_scores[atcoderid][recordnames[0]]:
+        if user_scores[atcoderid]['ac'] > user_last_scores[atcoderid]['ac']:
             accomp_list.append([
                 atcoderid,
-                user_scores[atcoderid][recordnames[0]] - user_last_scores[atcoderid][recordnames[0]],
-                user_scores[atcoderid][recordnames[1]] - user_last_scores[atcoderid][recordnames[1]],
+                user_scores[atcoderid]['ac'] - user_last_scores[atcoderid]['ac'],
+                user_scores[atcoderid]['point'] - user_last_scores[atcoderid]['point'],
             ])
     accomp_list.sort(key=lambda x: (-x[1],-x[2]))
     N=len(accomp_list)
