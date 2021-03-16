@@ -15,7 +15,7 @@
 デフォルトで必要なファイル／ディレクトリは次の3つ。
 
 - `~/var/acrank/record/`：記録を保存するためのディレクトリ。
-- `~/var/acrank/memberlist.txt`：メンバーのリスト。「名前　SlackのID　AtCoderのID」をタブ区切りで並べた行の集合。名前はコメントみたいなもので実際は使用しない。
+- `~/var/acrank/memberlist.tsv`：メンバーのリスト。「名前　SlackのID　AtCoderのID」をタブ区切りで並べた行の集合。名前はコメントみたいなもので実際は使用しない。
 - `~/var/acrank/slack_token`：Slack用のトークン。
 
 ### 使い方
@@ -70,4 +70,3 @@ Botとして運用する場合は、crontabに記述して定時に動かすと�
   - `--set_month (integer)`：現在ではなく指定した月を起点にする。
   - `-s` / `--slacksymbol`：Slack用に各月のシンボルを添えて出力。`:bamboo: 1`、`:christmas_tree:12`など。
 - `showyear.py`：`--slacksymbol`が無い以外は`showmonth.py`と同様。年指定は`--set_year`。
-
