@@ -21,6 +21,7 @@ rec_dir = base_dir + 'record/'
 userlist_file = 'memberlist.tsv'
 userlist_file_path = base_dir + userlist_file
 last_rec_file_format = 'record-{}'
+latest_rec_file = 'latest'
 ts_file_format = 'ts-{}'
 time_format = '%Y%m{}%H%M%S'
 rec_file_format = 'record-{}-{}.txt' # time, pid
@@ -37,6 +38,7 @@ post_format = {
     'post_footer_format' : '\n＊優勝＊は {}！ :tada:', # winner
     'rank_marks' : [':first_place_medal:',':second_place_medal:',':third_place_medal:'],
     'other_mark' : ':sparkles:',
+    'promotion' : '<@{}> さんが「{}」に昇級しました！！\nおめでとうございます！ :laughing::tada:'
 }
 post_format_inprogress = {
     'post_header_format' : '*【{}のAtCoder ACランキング（途中経過）】*',
@@ -45,6 +47,7 @@ post_format_inprogress = {
     'rank_marks' : ['']*3,
     'other_mark' : '',
 }
+colors = ['灰色','茶色','緑','水色','青','黄色','橙','赤']
 
 def get_channel_list(client, limit=200):
     params = {
@@ -92,6 +95,9 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--allsolvers',
                         help='show everyone who solved one or more.',
                         action='store_true')
+    parser.add_argument('--postpromotion',
+                        help='make a post when someone is promoted.',
+                        action='store_true')
     parser.add_argument('--newthread',
                         help='finish the previous thread and make a new one.',
                         action='store_true')
@@ -122,6 +128,7 @@ if __name__ == '__main__':
 
     userlist_file_path = base_dir + userlist_file
     last_rec_file_path = rec_dir + last_rec_file
+    latest_rec_file_path = rec_dir + latest_rec_file
     slacktoken_file_path = base_dir + slacktoken_file
 
     if args.slacktoken:
@@ -144,7 +151,7 @@ if __name__ == '__main__':
     atcoder_ids = set(member_info.keys())
 
     # read the previous record
-    user_last_scores = defaultdict(dict)
+    user_last_scores = defaultdict(lambda: defaultdict(lambda: None))
     new_members = set()
     if os.path.isfile(last_rec_file_path):
         with open(last_rec_file_path, 'r') as f:
@@ -154,6 +161,15 @@ if __name__ == '__main__':
                 user_last_scores[atcoderid]['ac'] = int(ac)
                 user_last_scores[atcoderid]['point'] = int(point)
         new_members = atcoder_ids - set(user_last_scores.keys())
+    if os.path.isfile(latest_rec_file_path):
+        with open(latest_rec_file_path, 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                atcoderid, latest_ac, latest_point, latest_rating = (line.rstrip().split()+[None])[:4]
+                if atcoderid in user_last_cores:
+                    user_last_scores[atcoderid]['latest_point'] = int(latest_point)
+                    if not latest_rating in [None, '']:
+                        user_last_scores[atcoderid]['latest_rating'] = int(latest_rating)
 
     # get the new status from atcoder problems
     datasets = [requests.get(urls[s]).json() for s in range(2)]
@@ -168,7 +184,16 @@ if __name__ == '__main__':
             atcoderid = data[i]['user_id']
             if atcoderid in atcoder_ids:
                 user_scores[atcoderid][recname] = int(data[i][recname])
-    del datasets
+    del data, datasets
+    for atcoderid in atcoder_ids:
+        if user_scores[atcoderid]['point'] > user_last_scores[atcoderid]['latest_point']:
+            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+        else:
+            user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
+        if user_scores[atcoderid]['rating'] is None:
+            user_scores[atcoderid]['rating_str'] = ''
+        else:
+            user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
@@ -253,9 +278,29 @@ if __name__ == '__main__':
             if ts is None:
                 ts = posted_data['ts']
                 with open(ts_file, 'w') as f:
-                    print(ts, file=f)
+                    print(ts, file=f)        
     else:
         print(message)
+
+    if args.postpromotion:
+        for atcoderid in atcoder_ids:
+            cur = user_scores[atcoderid]['rating']
+            prev = user_last_scores[atcoderid]['latest_rating']
+            if (cur is not None) and (prev is not None):
+                cc = cur // 400
+                pc = prev // 400
+                if cc > pc and cc > 0:
+                    message = post_format['promotion'].format(
+                        member_info[atcoderid]['slackid'],
+                        colors[cc],
+                    )
+                    if post_to_slack:
+                        web_client.api_call('chat.postMessage', params={
+                            'channel': channel_id,
+                            'text': message,
+                        })
+                    else:
+                        print(message)
 
     # update the symlink for last record
     if update_link:
@@ -263,3 +308,6 @@ if __name__ == '__main__':
         if os.path.islink(last_rec_file):
             os.unlink(last_rec_file)
         os.symlink(rec_file, last_rec_file)
+        if os.path.islink(latest_rec_file):
+            os.unlink(latest_rec_file)
+        os.symlink(rec_file, latest_rec_file)
