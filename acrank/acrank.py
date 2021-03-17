@@ -20,29 +20,28 @@ base_dir = os.environ['HOME'] + '/var/acrank/'
 rec_dir = base_dir + 'record/'
 userlist_file = 'memberlist.tsv'
 userlist_file_path = base_dir + userlist_file
-last_rec_file_format = 'record-%s'
-ts_file_format = 'ts-%s'
-time_format = '%Y%m%d%H%M%S'
-rec_file_format = 'record-%s-%d.txt' # time, pid
+last_rec_file_format = 'record-{}'
+ts_file_format = 'ts-{}'
+time_format = '%Y%m{}%H%M%S'
+rec_file_format = 'record-{}-{}.txt' # time, pid
 urls = [
     'https://kenkoooo.com/atcoder/resources/ac.json',
     'https://kenkoooo.com/atcoder/resources/sums.json',
 ]
-recordnames = ['problem_count', 'point_sum']
 N_ranking = 5
 post_format = {
-    'post_header_format' : '*【%sのAtCoder ACランキング】*',
-    'post_line_format' : '%d位：%s<@%s>  (%d問 %d点)', # rank, mark, slackid, ac, point
-    'post_remain_format' : 'AC1問以上：%s',
+    'post_header_format' : '*【{}のAtCoder ACランキング】*',
+    'post_line_format' : '{}位：{}<@{}>  ({}問 {}点)', # rank, mark, slackid, ac, point
+    'post_remain_format' : 'AC1問以上：{}',
     'post_nobody' : '1問も解いた人がいませんでした :scream:',
-    'post_footer_format' : '\n＊優勝＊は %s！ :tada:', # winner
+    'post_footer_format' : '\n＊優勝＊は {}！ :tada:', # winner
     'rank_marks' : [':first_place_medal:',':second_place_medal:',':third_place_medal:'],
     'other_mark' : ':sparkles:',
 }
 post_format_inprogress = {
-    'post_header_format' : '*【%sのAtCoder ACランキング（途中経過）】*',
+    'post_header_format' : '*【{}のAtCoder ACランキング（途中経過）】*',
     'post_nobody' : 'まだ誰も解いていません :hatching_chick:',
-    'post_footer_format' : '\n現在、%sがトップです！ :woman-running::man-running:',
+    'post_footer_format' : '\n現在、{}がトップです！ :woman-running::man-running:',
     'rank_marks' : ['']*3,
     'other_mark' : '',
 }
@@ -54,7 +53,7 @@ def get_channel_list(client, limit=200):
         'limit': str(limit),
         }
     channels = client.api_call('conversations.list', params=params)
-    if channels['ok']:
+    if bool(channels['ok']):
         return channels['channels']
     else:
         return None
@@ -98,7 +97,7 @@ if __name__ == '__main__':
                         help='slack bot token.')
     args = parser.parse_args()
 
-    last_rec_file = last_rec_file_format % args.cycle
+    last_rec_file = last_rec_file_format.format(args.cycle)
     if args.noslack:
         post_to_slack = False
     if args.inprogress:
@@ -110,8 +109,8 @@ if __name__ == '__main__':
     N_ranking = args.nranks
     channel_name = args.channel
     rank_marks += [other_mark]*N_ranking
-    post_header = post_header_format % (args.cycle_str)
-    ts_file = ts_file_format % args.cycle
+    post_header = post_header_format.format(args.cycle_str)
+    ts_file = ts_file_format.format(args.cycle)
 
     userlist_file_path = base_dir + userlist_file
     last_rec_file_path = rec_dir + last_rec_file
@@ -144,18 +143,18 @@ if __name__ == '__main__':
             lines = f.readlines()
             for line in lines:
                 atcoderid, ac, point = line.rstrip().split()[:3]
-                user_last_scores[atcoderid][recordnames[0]] = int(ac)
-                user_last_scores[atcoderid][recordnames[1]] = int(point)
+                user_last_scores[atcoderid]['ac'] = int(ac)
+                user_last_scores[atcoderid]['point'] = int(point)
         new_members = atcoder_ids - set(user_last_scores.keys())
 
     # get the new status from atcoder problems
     datasets = [requests.get(urls[s]).json() for s in range(2)]
-    rec_file = rec_file_format % (datetime.now().strftime(time_format), os.getpid())
+    rec_file = rec_file_format.format(datetime.now().strftime(time_format), os.getpid())
     rec_file_path = rec_dir + rec_file
     user_scores = defaultdict(dict)
     for s in range(2):
         data = datasets[s]
-        recname = recordnames[s]
+        recname = ['ac', 'point'][s]
         L = len(data)
         for i in range(L):
             atcoderid = data[i]['user_id']
@@ -165,23 +164,23 @@ if __name__ == '__main__':
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
-            print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], file=f)
+            print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'],sep='\t', file=f)
     # back-record new members' status
     if new_members:
         with open(last_rec_file_path, 'a') as f:
             for atcoderid in new_members:
-                print(atcoderid, user_scores[atcoderid][recordnames[0]], user_scores[atcoderid][recordnames[1]], file=f)
+                print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'], sep='\t', file=f)
     # print(user_last_scores)
     # print(user_scores)
     
     # compute differences from last time
     accomp_list = []
     for atcoderid in user_scores.keys():
-        if user_scores[atcoderid][recordnames[0]] > user_last_scores[atcoderid][recordnames[0]]:
+        if user_scores[atcoderid]['ac'] > user_last_scores[atcoderid]['ac']:
             accomp_list.append([
                 atcoderid,
-                user_scores[atcoderid][recordnames[0]] - user_last_scores[atcoderid][recordnames[0]],
-                user_scores[atcoderid][recordnames[1]] - user_last_scores[atcoderid][recordnames[1]],
+                user_scores[atcoderid]['ac'] - user_last_scores[atcoderid]['ac'],
+                user_scores[atcoderid]['point'] - user_last_scores[atcoderid]['point'],
             ])
     accomp_list.sort(key=lambda x: (-x[1],-x[2]))
     N=len(accomp_list)
@@ -205,16 +204,16 @@ if __name__ == '__main__':
     if N > 0:
         for atcoderid, ac, point, rank in ranking_list:
             slackid = member_info[atcoderid]['slackid']
-            post_lines.append(post_line_format % (rank, rank_marks[rank-1], slackid, ac, point))
+            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], slackid, ac, point))
             if rank == 1:
-                winners_str_list.append(rank_marks[0]+'<@%s> さん' % slackid)
+                winners_str_list.append(rank_marks[0]+'<@{}> さん'.format(slackid))
         if remain_list and args.allsolvers:
-            remain_str_list = [ '<@%s>' % member_info[x[0]]['slackid'] for x in remain_list ]
+            remain_str_list = [ '<@{}>'.format(member_info[x[0]]['slackid']) for x in remain_list ]
             post_lines.append(
-                post_remain_format % '、'.join(remain_str_list)
+                post_remain_format.format('、'.join(remain_str_list))
             )
         post_lines.append(
-            post_footer_format % '、'.join(winners_str_list)
+            post_footer_format.format('、'.join(winners_str_list))
         )
     else:
         post_lines.append(post_nobody)
