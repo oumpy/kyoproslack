@@ -19,6 +19,9 @@ scope_days = 10 # None : inifinite
 url_root  = "https://atcoder.jp"
 url_contests = "https://atcoder.jp/contests/"
 
+regular_starting_time = datetime.time(21,0)
+irregular_caution_message = ':scream: 開始時刻注意！'
+
 def get_upcoming_contests():
     r=requests.get(url_contests)
     soup=bs(r.text,"lxml")
@@ -77,15 +80,24 @@ def get_contest_info(upcoming_contests):#soupの一部を渡すと、(date,durat
 def info2post(info):
     date, duration, name, link, grade, rated = info
     start_datetime = datetime.datetime.strptime(date, '%Y-%m-%d %H:%M:%S%z')
-    start_str = start_datetime.strftime('%Y-%m-%d(%a) %H:%M')
+    if start_datetime.time() == regular_starting_time:
+        regular_start = True
+        start_str = start_datetime.strftime('%Y-%m-%d(%a) %H:%M')
+    else:
+        regular_start = False
+        start_str = start_datetime.strftime('%Y-%m-%d(%a) *%H:%M* ')
     duration_hours, duration_minutes = map(int,duration.split(':'))
     end_datetime = (start_datetime + datetime.timedelta(hours=duration_hours, minutes=duration_minutes))
     if start_datetime.date() == end_datetime.date():
         end_str = end_datetime.strftime('%H:%M')
         date_line = '{}-{}'.format(start_str, end_str)
+        if not regular_start:
+            date_line += ' *({})*'.format(irregular_caution_message)
     else:
         end_str = end_datetime.strftime('%Y-%m-%d(%a) %H:%M')
         date_line = '{} - {}'.format(start_str, end_str)
+        if not regular_start:
+            date_line += '\n*({})*'.format(irregular_caution_message)
     rated_line = 'rated: {}'.format(rated.strip())
 
     # if re.match(r'^AtCoder (Beginner|Regular|Grand) Contest', name):
