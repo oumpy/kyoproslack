@@ -308,6 +308,7 @@ if __name__ == '__main__':
         if os.path.islink(last_rec_file):
             os.unlink(last_rec_file)
         os.symlink(rec_file, last_rec_file)
+    if args.postpromotion:
         if os.path.islink(latest_rec_file):
             os.unlink(latest_rec_file)
         os.symlink(rec_file, latest_rec_file)
