@@ -4,7 +4,7 @@ import requests
 from collections import defaultdict
 import os
 from datetime import datetime
-from slack import WebClient
+from slack_sdk import WebClient
 import argparse
 
 # Example:
