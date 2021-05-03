@@ -183,7 +183,7 @@ if __name__ == '__main__':
         for i in range(L):
             atcoderid = data[i]['user_id']
             if atcoderid in atcoder_ids:
-                user_scores[atcoderid][recname] = int(data[i][recname])
+                user_scores[atcoderid][recname] = int(data[i])
     del data, datasets
     for atcoderid in atcoder_ids:
         if user_scores[atcoderid]['point'] > user_last_scores[atcoderid]['latest_point']:
