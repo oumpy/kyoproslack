@@ -166,7 +166,7 @@ if __name__ == '__main__':
             lines = f.readlines()
             for line in lines:
                 atcoderid, latest_ac, latest_point, latest_rating = (line.rstrip().split()+[None])[:4]
-                if atcoderid in user_last_cores:
+                if atcoderid in user_last_scores:
                     user_last_scores[atcoderid]['latest_point'] = int(latest_point)
                     if not latest_rating in [None, '']:
                         user_last_scores[atcoderid]['latest_rating'] = int(latest_rating)
@@ -183,7 +183,7 @@ if __name__ == '__main__':
         for i in range(L):
             atcoderid = data[i]['user_id']
             if atcoderid in atcoder_ids:
-                user_scores[atcoderid][recname] = int(data[i])
+                user_scores[atcoderid][recname] = int(data[i][recname])
     del data, datasets
     for atcoderid in atcoder_ids:
         if user_scores[atcoderid]['point'] > user_last_scores[atcoderid]['latest_point']:
