@@ -184,6 +184,8 @@ if __name__ == '__main__':
             atcoderid = data[i]['user_id']
             if atcoderid in atcoder_ids:
                 user_scores[atcoderid][recname] = int(data[i][recname])
+            if atcoderid in new_members:
+                user_last_scores[atcoderid][recname] = int(data[i][recname])
     del data, datasets
     for atcoderid in atcoder_ids:
         if user_scores[atcoderid]['point'] > user_last_scores[atcoderid]['latest_point']:
