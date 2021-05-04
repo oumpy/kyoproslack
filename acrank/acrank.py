@@ -161,6 +161,8 @@ if __name__ == '__main__':
             atcoderid = data[i]['user_id']
             if atcoderid in atcoder_ids:
                 user_scores[atcoderid][recname] = int(data[i][recname])
+            if atcoderid in new_members:
+                user_last_scores[atcoderid][recname] = int(data[i][recname])
     del datasets
     # write the new status
     with open(rec_file_path, 'w') as f:
