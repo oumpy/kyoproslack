@@ -311,6 +311,7 @@ if __name__ == '__main__':
             os.unlink(last_rec_file)
         os.symlink(rec_file, last_rec_file)
     if args.postpromotion:
+        os.chdir(rec_dir)
         if os.path.islink(latest_rec_file):
             os.unlink(latest_rec_file)
         os.symlink(rec_file, latest_rec_file)
