@@ -23,7 +23,7 @@ userlist_file_path = base_dir + userlist_file
 last_rec_file_format = 'record-{}'
 latest_rec_file = 'latest'
 ts_file_format = 'ts-{}'
-time_format = '%Y%m{}%H%M%S'
+time_format = '%Y%m%d%H%M%S'
 rec_file_format = 'record-{}-{}.txt' # time, pid
 urls = [
     'https://kenkoooo.com/atcoder/resources/ac.json',
