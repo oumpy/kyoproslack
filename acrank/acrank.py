@@ -158,8 +158,8 @@ if __name__ == '__main__':
             lines = f.readlines()
             for line in lines:
                 atcoderid, ac, point = line.rstrip().split()[:3]
-                user_last_scores[atcoderid]['ac'] = int(ac)
-                user_last_scores[atcoderid]['point'] = int(point)
+                user_last_scores[atcoderid]['problem_count'] = int(ac)
+                user_last_scores[atcoderid]['point_sum'] = int(point)
         new_members = atcoder_ids - set(user_last_scores.keys())
     if os.path.isfile(latest_rec_file_path):
         with open(latest_rec_file_path, 'r') as f:
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     user_scores = defaultdict(dict)
     for s in range(2):
         data = datasets[s]
-        recname = ['ac', 'point'][s]
+        recname = ['problem_count', 'point_sum'][s]
         L = len(data)
         for i in range(L):
             atcoderid = data[i]['user_id']
@@ -199,23 +199,23 @@ if __name__ == '__main__':
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
-            print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'],sep='\t', file=f)
+            print(atcoderid, user_scores[atcoderid]['problem_count'], user_scores[atcoderid]['point_sum'], user_scores[atcoderid]['rating_str'],sep='\t', file=f)
     # back-record new members' status
     if new_members:
         with open(last_rec_file_path, 'a') as f:
             for atcoderid in new_members:
-                print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'], sep='\t', file=f)
+                print(atcoderid, user_scores[atcoderid]['problem_count'], user_scores[atcoderid]['point_sum'], user_scores[atcoderid]['rating_str'], sep='\t', file=f)
     # print(user_last_scores)
     # print(user_scores)
     
     # compute differences from last time
     accomp_list = []
     for atcoderid in user_scores.keys():
-        if user_scores[atcoderid]['ac'] > user_last_scores[atcoderid]['ac']:
+        if user_scores[atcoderid]['problem_count'] > user_last_scores[atcoderid]['problem_count']:
             accomp_list.append([
                 atcoderid,
-                user_scores[atcoderid]['ac'] - user_last_scores[atcoderid]['ac'],
-                user_scores[atcoderid]['point'] - user_last_scores[atcoderid]['point'],
+                user_scores[atcoderid]['problem_count'] - user_last_scores[atcoderid]['problem_count'],
+                user_scores[atcoderid]['point_sum'] - user_last_scores[atcoderid]['point_sum'],
             ])
     accomp_list.sort(key=lambda x: (-x[1],-x[2]))
     N=len(accomp_list)
