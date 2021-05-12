@@ -188,7 +188,9 @@ if __name__ == '__main__':
                 user_last_scores[atcoderid][recname] = int(data[i][recname])
     del data, datasets
     for atcoderid in atcoder_ids:
-        if user_scores[atcoderid]['point'] > user_last_scores[atcoderid]['latest_point']:
+        if user_last_scores[atcoderid]['rating'] is None:
+            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+        elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
             user_scores[atcoderid]['rating'] = get_rating(atcoderid)
         else:
             user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
