@@ -95,7 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--allsolvers',
                         help='show everyone who solved one or more.',
                         action='store_true')
-    parser.add_argument('--postpromotion',
+    parser.add_argument('-p', '--postpromotion',
                         help='make a post when someone is promoted.',
                         action='store_true')
     parser.add_argument('--newthread',
