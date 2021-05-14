@@ -8,7 +8,7 @@
 
 前回実行以降のメンバーのAtCoder精進状況（新規AC数、得点）をAtCoder Problemsから取得し、上位をランキングにして指定したチャネルへ投稿する。これにより、みんなで盛り上がっていっそう精進することができる（たぶん）。
 
-中身はすべてPython 3で書かれている。SDK for Pythonの`slack.WebClient`を使ってSlackにアクセスする。
+中身はすべてPython 3で書かれている。SDK for Pythonの`slack_sdk.WebClient`を使ってSlackにアクセスする。
 
 ### 準備
 
