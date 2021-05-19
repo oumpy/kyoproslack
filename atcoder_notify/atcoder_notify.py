@@ -16,7 +16,7 @@ locale.setlocale(locale.LC_TIME, 'ja_JP.UTF-8')
 
 diff_info_filename = 'diff_info.pickle'
 rated_only = True
-scope_days = 10 # None : inifinite
+scope_days = 5 # None : inifinite
 url_root  = "https://atcoder.jp"
 url_contests = "https://atcoder.jp/contests/"
 
