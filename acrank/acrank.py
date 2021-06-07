@@ -80,7 +80,7 @@ def get_rating(atcoderid):
     if contest_record:
         return contest_record[-1]['NewRating']
     else:
-        return None
+        return 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -291,9 +291,9 @@ if __name__ == '__main__':
             cur = user_scores[atcoderid]['rating']
             prev = user_last_scores[atcoderid]['latest_rating']
             if (cur is not None) and (prev is not None):
-                cc = cur // 400
-                pc = prev // 400
-                if max(pc,0) < cc < len(colors):
+                cc = cur // 400 if cur > 0 else -1
+                pc = prev // 400 if prev > 0 else -1
+                if pc < cc < len(colors):
                     message = post_format['promotion'].format(
                         member_info[atcoderid]['slackid'],
                         colors[cc],
