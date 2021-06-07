@@ -8,7 +8,7 @@
 
 前回実行以降のメンバーのAtCoder精進状況（新規AC数、得点）をAtCoder Problemsから取得し、上位をランキングにして指定したチャネルへ投稿する。これにより、みんなで盛り上がっていっそう精進することができる（たぶん）。
 
-中身はすべてPython 3で書かれている。SDK for Pythonの`slack.WebClient`を使ってSlackにアクセスする。
+中身はすべてPython 3で書かれている。SDK for Pythonの`slack_sdk.WebClient`を使ってSlackにアクセスする。
 
 ### 準備
 
@@ -39,7 +39,7 @@ Botとして運用する場合は、crontabに記述して定時に動かすと�
 
 ```bash
 #min    hour    day     month   week    command
-0       6       *       *       1       acrank.py week 先週 -a
+0       6       *       *       1       acrank.py week 先週 -a -p
 0       21      *       *       4       acrank.py week 今週 --inprogress
 30      20      *       *       6       acrank.py week 今週 --inprogress --mute
 0       6       1       *       *       sleep 10 && acrank.py month `lastmonth`月
@@ -55,7 +55,7 @@ Botとして運用する場合は、crontabに記述して定時に動かすと�
 - `-n (integer)`：指定した順位までをランキング。デフォルトは5。
 - `-s (integer)`：指定した問題数以上を解いていれば、順位に関わらずランクインとする。`0`を指定した場合は何も効力がない。
 - `-a` / `--allsolvers`：1問以上解いた人はランク外も名前のみ発表。
-- `--postpromotion`：前回実行からの間に昇級（色変）した人へのお祝いメッセージを投稿する。
+- `-p` / `--postpromotion`：前回実行からの間に昇級（色変）した人へのお祝いメッセージを投稿する。
 - `--slacktoken (string)`：Slack API Bot Tokenを直接指定（slack_tokenファイルは無視される）。
 
 ### 補助スクリプト

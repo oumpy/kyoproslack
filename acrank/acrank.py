@@ -23,7 +23,7 @@ userlist_file_path = base_dir + userlist_file
 last_rec_file_format = 'record-{}'
 latest_rec_file = 'latest'
 ts_file_format = 'ts-{}'
-time_format = '%Y%m{}%H%M%S'
+time_format = '%Y%m%d%H%M%S'
 rec_file_format = 'record-{}-{}.txt' # time, pid
 urls = [
     'https://kenkoooo.com/atcoder/resources/ac.json',
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('-a', '--allsolvers',
                         help='show everyone who solved one or more.',
                         action='store_true')
-    parser.add_argument('--postpromotion',
+    parser.add_argument('-p', '--postpromotion',
                         help='make a post when someone is promoted.',
                         action='store_true')
     parser.add_argument('--newthread',
@@ -158,15 +158,15 @@ if __name__ == '__main__':
             lines = f.readlines()
             for line in lines:
                 atcoderid, ac, point = line.rstrip().split()[:3]
-                user_last_scores[atcoderid]['ac'] = int(ac)
-                user_last_scores[atcoderid]['point'] = int(point)
+                user_last_scores[atcoderid]['problem_count'] = int(ac)
+                user_last_scores[atcoderid]['point_sum'] = int(point)
         new_members = atcoder_ids - set(user_last_scores.keys())
     if os.path.isfile(latest_rec_file_path):
         with open(latest_rec_file_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
                 atcoderid, latest_ac, latest_point, latest_rating = (line.rstrip().split()+[None])[:4]
-                if atcoderid in user_last_cores:
+                if atcoderid in user_last_scores:
                     user_last_scores[atcoderid]['latest_point'] = int(latest_point)
                     if not latest_rating in [None, '']:
                         user_last_scores[atcoderid]['latest_rating'] = int(latest_rating)
@@ -178,15 +178,19 @@ if __name__ == '__main__':
     user_scores = defaultdict(dict)
     for s in range(2):
         data = datasets[s]
-        recname = ['ac', 'point'][s]
+        recname = ['problem_count', 'point_sum'][s]
         L = len(data)
         for i in range(L):
             atcoderid = data[i]['user_id']
             if atcoderid in atcoder_ids:
-                user_scores[atcoderid][recname] = int(data[i])
+                user_scores[atcoderid][recname] = int(data[i][recname])
+            if atcoderid in new_members:
+                user_last_scores[atcoderid][recname] = int(data[i][recname])
     del data, datasets
     for atcoderid in atcoder_ids:
-        if user_scores[atcoderid]['point'] > user_last_scores[atcoderid]['latest_point']:
+        if user_last_scores[atcoderid]['rating'] is None:
+            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+        elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
             user_scores[atcoderid]['rating'] = get_rating(atcoderid)
         else:
             user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
@@ -197,23 +201,23 @@ if __name__ == '__main__':
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
-            print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'],sep='\t', file=f)
+            print(atcoderid, user_scores[atcoderid]['problem_count'], user_scores[atcoderid]['point_sum'], user_scores[atcoderid]['rating_str'],sep='\t', file=f)
     # back-record new members' status
     if new_members:
         with open(last_rec_file_path, 'a') as f:
             for atcoderid in new_members:
-                print(atcoderid, user_scores[atcoderid]['ac'], user_scores[atcoderid]['point'], user_scores[atcoderid]['rating_str'], sep='\t', file=f)
+                print(atcoderid, user_scores[atcoderid]['problem_count'], user_scores[atcoderid]['point_sum'], user_scores[atcoderid]['rating_str'], sep='\t', file=f)
     # print(user_last_scores)
     # print(user_scores)
     
     # compute differences from last time
     accomp_list = []
     for atcoderid in user_scores.keys():
-        if user_scores[atcoderid]['ac'] > user_last_scores[atcoderid]['ac']:
+        if user_scores[atcoderid]['problem_count'] > user_last_scores[atcoderid]['problem_count']:
             accomp_list.append([
                 atcoderid,
-                user_scores[atcoderid]['ac'] - user_last_scores[atcoderid]['ac'],
-                user_scores[atcoderid]['point'] - user_last_scores[atcoderid]['point'],
+                user_scores[atcoderid]['problem_count'] - user_last_scores[atcoderid]['problem_count'],
+                user_scores[atcoderid]['point_sum'] - user_last_scores[atcoderid]['point_sum'],
             ])
     accomp_list.sort(key=lambda x: (-x[1],-x[2]))
     N=len(accomp_list)
@@ -309,6 +313,7 @@ if __name__ == '__main__':
             os.unlink(last_rec_file)
         os.symlink(rec_file, last_rec_file)
     if args.postpromotion:
+        os.chdir(rec_dir)
         if os.path.islink(latest_rec_file):
             os.unlink(latest_rec_file)
         os.symlink(rec_file, latest_rec_file)
