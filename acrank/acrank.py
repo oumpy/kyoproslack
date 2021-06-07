@@ -80,7 +80,7 @@ def get_rating(atcoderid):
     if contest_record:
         return contest_record[-1]['NewRating']
     else:
-        return None
+        return 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
