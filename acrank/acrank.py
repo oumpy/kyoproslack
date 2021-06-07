@@ -212,7 +212,7 @@ if __name__ == '__main__':
     
     # compute differences from last time
     accomp_list = []
-    for atcoderid in user_scores.keys():
+    for atcoderid in user_scores.keys() & user_last_scores.keys():
         if user_scores[atcoderid]['problem_count'] > user_last_scores[atcoderid]['problem_count']:
             accomp_list.append([
                 atcoderid,
