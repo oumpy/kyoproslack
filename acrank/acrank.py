@@ -29,32 +29,6 @@ urls = [
     'https://kenkoooo.com/atcoder/atcoder-api/v3/user/ac_rank?user={}',
     'https://kenkoooo.com/atcoder/atcoder-api/v3/user/rated_point_sum_rank?user={}',
 ]
-# get the new status from atcoder problems
-rec_file = rec_file_format.format(datetime.now().strftime(time_format), os.getpid())
-rec_file_path = rec_dir + rec_file 
-user_scores = defaultdict(dict)
-for atcoderid in atcoder_ids:
-    for s in range(2):
-        recname = ['problem_count', 'point_sum'][s]
-        user_data = requests.get(urls[s].format(atcoderid))
-        if user_data.status_code // 100 == 2:
-            user_data_dic = user_data.json()
-            user_scores[atcoderid][recname] = int(user_data_dic['count'])
-            if atcoderid in new_members:
-                user_last_scores[atcoderid][recname] = int(user_data_dic['count'])
-        else: # status error : the account has been deleted/renamed.
-            break
-    else:
-        if user_last_scores[atcoderid]['rating'] is None:
-            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
-        elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
-            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
-        else:
-            user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
-        if user_scores[atcoderid]['rating'] is None:
-            user_scores[atcoderid]['rating_str'] = ''
-        else:
-            user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
 N_ranking = 5
 post_format = {
     'post_header_format' : '*【{}のAtCoder ACランキング】*',
@@ -198,32 +172,31 @@ if __name__ == '__main__':
                         user_last_scores[atcoderid]['latest_rating'] = int(latest_rating)
 
     # get the new status from atcoder problems
-    datasets = [requests.get(urls[s]).json() for s in range(2)]
     rec_file = rec_file_format.format(datetime.now().strftime(time_format), os.getpid())
-    rec_file_path = rec_dir + rec_file
+    rec_file_path = rec_dir + rec_file 
     user_scores = defaultdict(dict)
-    for s in range(2):
-        data = datasets[s]
-        recname = ['problem_count', 'point_sum'][s]
-        L = len(data)
-        for i in range(L):
-            atcoderid = data[i]['user_id']
-            if atcoderid in atcoder_ids:
-                user_scores[atcoderid][recname] = int(data[i][recname])
-            if atcoderid in new_members:
-                user_last_scores[atcoderid][recname] = int(data[i][recname])
-    del data, datasets
     for atcoderid in atcoder_ids:
-        if user_last_scores[atcoderid]['rating'] is None:
-            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
-        elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
-            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+        for s in range(2):
+            recname = ['problem_count', 'point_sum'][s]
+            user_data = requests.get(urls[s].format(atcoderid))
+            if user_data.status_code // 100 == 2:
+                user_data_dic = user_data.json()
+                user_scores[atcoderid][recname] = int(user_data_dic['count'])
+                if atcoderid in new_members:
+                    user_last_scores[atcoderid][recname] = int(user_data_dic['count'])
+            else: # status error : the account has been deleted/renamed.
+                break
         else:
-            user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
-        if user_scores[atcoderid]['rating'] is None:
-            user_scores[atcoderid]['rating_str'] = ''
-        else:
-            user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
+            if user_last_scores[atcoderid]['rating'] is None:
+                user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+            elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
+                user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+            else:
+                user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
+            if user_scores[atcoderid]['rating'] is None:
+                user_scores[atcoderid]['rating_str'] = ''
+            else:
+                user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
