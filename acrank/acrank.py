@@ -26,9 +26,35 @@ ts_file_format = 'ts-{}'
 time_format = '%Y%m%d%H%M%S'
 rec_file_format = 'record-{}-{}.txt' # time, pid
 urls = [
-    'https://kenkoooo.com/atcoder/resources/ac.json',
-    'https://kenkoooo.com/atcoder/resources/sums.json',
+    'https://kenkoooo.com/atcoder/atcoder-api/v3/user/ac_rank?user={}',
+    'https://kenkoooo.com/atcoder/atcoder-api/v3/user/rated_point_sum_rank?user={}',
 ]
+# get the new status from atcoder problems
+rec_file = rec_file_format.format(datetime.now().strftime(time_format), os.getpid())
+rec_file_path = rec_dir + rec_file 
+user_scores = defaultdict(dict)
+for atcoderid in atcoder_ids:
+    for s in range(2):
+        recname = ['problem_count', 'point_sum'][s]
+        user_data = requests.get(urls[s].format(atcoderid))
+        if user_data.status_code // 100 == 2:
+            user_data_dic = user_data.json()
+            user_scores[atcoderid][recname] = int(user_data_dic['count'])
+            if atcoderid in new_members:
+                user_last_scores[atcoderid][recname] = int(user_data_dic['count'])
+        else: # status error : the account has been deleted/renamed.
+            break
+    else:
+        if user_last_scores[atcoderid]['rating'] is None:
+            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+        elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
+            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+        else:
+            user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
+        if user_scores[atcoderid]['rating'] is None:
+            user_scores[atcoderid]['rating_str'] = ''
+        else:
+            user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
 N_ranking = 5
 post_format = {
     'post_header_format' : '*【{}のAtCoder ACランキング】*',
