@@ -173,7 +173,7 @@ if __name__ == '__main__':
 
     # get the new status from atcoder problems
     rec_file = rec_file_format.format(datetime.now().strftime(time_format), os.getpid())
-    rec_file_path = rec_dir + rec_file 
+    rec_file_path = rec_dir + rec_file
     user_scores = defaultdict(dict)
     for atcoderid in atcoder_ids:
         for s in range(2):
