@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import requests
+from time import sleep
 from collections import defaultdict
 import os
 from datetime import datetime
@@ -26,8 +27,8 @@ ts_file_format = 'ts-{}'
 time_format = '%Y%m%d%H%M%S'
 rec_file_format = 'record-{}-{}.txt' # time, pid
 urls = [
-    'https://kenkoooo.com/atcoder/resources/ac.json',
-    'https://kenkoooo.com/atcoder/resources/sums.json',
+    'https://kenkoooo.com/atcoder/atcoder-api/v3/user/ac_rank?user={}',
+    'https://kenkoooo.com/atcoder/atcoder-api/v3/user/rated_point_sum_rank?user={}',
 ]
 N_ranking = 5
 post_format = {
@@ -48,6 +49,16 @@ post_format_inprogress = {
     'other_mark' : '',
 }
 colors = ['灰色','茶色','緑','水色','青','黄色','橙','赤']
+API_interval = 1.0
+# maybe 1.0 is a bit too large, since the requests are light.
+
+API_firsttime = True
+def API_sleep(t):
+    global API_firsttime
+    if API_firsttime:
+        API_firsttime = False
+    else:
+        sleep(t)
 
 def get_channel_list(client, limit=200):
     params = {
@@ -74,8 +85,9 @@ def get_channel_id(client, channel_name):
     else:
         return target['id']
 
-def get_rating(atcoderid):
+def get_rating(atcoderid, interval=API_interval):
     urlbase = 'https://atcoder.jp/users/{}/history/json/'
+    API_sleep(interval)
     contest_record = requests.get(urlbase.format(atcoderid)).json()
     if contest_record:
         return contest_record[-1]['NewRating']
@@ -109,8 +121,11 @@ if __name__ == '__main__':
                         help='slack channel to post.')
     parser.add_argument('--slacktoken', default=None,
                         help='slack bot token.')
+    parser.add_argument('--API-interval', type=float, default=API_interval,
+                        help='set intervals (sec.) between AtCoder Problems API calls (default={}).'.format(API_interval))
     args = parser.parse_args()
 
+    API_interval = args.API_interval
     last_rec_file = last_rec_file_format.format(args.cycle)
     if args.noslack:
         post_to_slack = False
@@ -172,32 +187,32 @@ if __name__ == '__main__':
                         user_last_scores[atcoderid]['latest_rating'] = int(latest_rating)
 
     # get the new status from atcoder problems
-    datasets = [requests.get(urls[s]).json() for s in range(2)]
     rec_file = rec_file_format.format(datetime.now().strftime(time_format), os.getpid())
     rec_file_path = rec_dir + rec_file
     user_scores = defaultdict(dict)
-    for s in range(2):
-        data = datasets[s]
-        recname = ['problem_count', 'point_sum'][s]
-        L = len(data)
-        for i in range(L):
-            atcoderid = data[i]['user_id']
-            if atcoderid in atcoder_ids:
-                user_scores[atcoderid][recname] = int(data[i][recname])
-            if atcoderid in new_members:
-                user_last_scores[atcoderid][recname] = int(data[i][recname])
-    del data, datasets
     for atcoderid in atcoder_ids:
-        if user_last_scores[atcoderid]['rating'] is None:
-            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
-        elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
-            user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+        for s in range(2):
+            recname = ['problem_count', 'point_sum'][s]
+            API_sleep(API_interval)
+            user_data = requests.get(urls[s].format(atcoderid))
+            if user_data.status_code // 100 == 2:
+                user_data_dic = user_data.json()
+                user_scores[atcoderid][recname] = int(user_data_dic['count'])
+                if atcoderid in new_members:
+                    user_last_scores[atcoderid][recname] = int(user_data_dic['count'])
+            else: # status error : the account has been deleted/renamed.
+                break
         else:
-            user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
-        if user_scores[atcoderid]['rating'] is None:
-            user_scores[atcoderid]['rating_str'] = ''
-        else:
-            user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
+            if user_last_scores[atcoderid]['rating'] is None:
+                user_scores[atcoderid]['rating'] = get_rating(atcoderid, API_interval)
+            elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
+                user_scores[atcoderid]['rating'] = get_rating(atcoderid, API_interval)
+            else:
+                user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
+            if user_scores[atcoderid]['rating'] is None:
+                user_scores[atcoderid]['rating_str'] = ''
+            else:
+                user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
