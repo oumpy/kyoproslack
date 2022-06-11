@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import requests
+from time import sleep
 from collections import defaultdict
 import os
 from datetime import datetime
@@ -48,6 +49,16 @@ post_format_inprogress = {
     'other_mark' : '',
 }
 colors = ['灰色','茶色','緑','水色','青','黄色','橙','赤']
+API_interval = 1.0
+# maybe 1.0 is a bit too large, since the requests are light.
+
+API_firsttime = True
+def API_sleep(t):
+    global API_firsttime
+    if API_firsttime:
+        API_firsttime = False
+    else:
+        sleep(t)
 
 def get_channel_list(client, limit=200):
     params = {
@@ -74,8 +85,9 @@ def get_channel_id(client, channel_name):
     else:
         return target['id']
 
-def get_rating(atcoderid):
+def get_rating(atcoderid, interval=API_interval):
     urlbase = 'https://atcoder.jp/users/{}/history/json/'
+    API_sleep(interval)
     contest_record = requests.get(urlbase.format(atcoderid)).json()
     if contest_record:
         return contest_record[-1]['NewRating']
@@ -109,8 +121,11 @@ if __name__ == '__main__':
                         help='slack channel to post.')
     parser.add_argument('--slacktoken', default=None,
                         help='slack bot token.')
+    parser.add_argument('--API-interval', type=float, default=API_interval,
+                        help='set intervals (sec.) between AtCoder Problems API calls (default={}).'.format(API_interval))
     args = parser.parse_args()
 
+    API_interval = args.API_interval
     last_rec_file = last_rec_file_format.format(args.cycle)
     if args.noslack:
         post_to_slack = False
@@ -178,6 +193,7 @@ if __name__ == '__main__':
     for atcoderid in atcoder_ids:
         for s in range(2):
             recname = ['problem_count', 'point_sum'][s]
+            API_sleep(API_interval)
             user_data = requests.get(urls[s].format(atcoderid))
             if user_data.status_code // 100 == 2:
                 user_data_dic = user_data.json()
@@ -188,9 +204,9 @@ if __name__ == '__main__':
                 break
         else:
             if user_last_scores[atcoderid]['rating'] is None:
-                user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+                user_scores[atcoderid]['rating'] = get_rating(atcoderid, API_interval)
             elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
-                user_scores[atcoderid]['rating'] = get_rating(atcoderid)
+                user_scores[atcoderid]['rating'] = get_rating(atcoderid, API_interval)
             else:
                 user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
             if user_scores[atcoderid]['rating'] is None:
