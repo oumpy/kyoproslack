@@ -6,16 +6,18 @@ from collections import defaultdict
 import os
 from datetime import datetime
 from slack_sdk import WebClient
+from mattermostdriver import Driver
 import argparse
 
 # Example:
 # python acrank.py week 先週
 #
 
-post_to_slack = True
+post_to_sns = True
 update_link = True
-slacktoken_file = 'slack_token'
+token_file = 'mattermost_token'
 
+team_name = 'main'
 channel_name = 'competition'
 base_dir = os.environ['HOME'] + '/var/acrank/'
 rec_dir = base_dir + 'record/'
@@ -32,17 +34,17 @@ urls = [
 ]
 N_ranking = 5
 post_format = {
-    'post_header_format' : '*【{}のAtCoder ACランキング】*',
-    'post_line_format' : '{}位：{}<@{}>  ({}問 {}点)', # rank, mark, slackid, ac, point
+    'post_header_format' : '{1}【{0}のAtCoder ACランキング】{1}', # week, bold-sign
+    'post_line_format' : '{0}位：{1}{5}@{2}{6}  ({3}問 {4}点)', # rank, mark, snsid, ac, point, mention-bra, mention-ket
     'post_remain_format' : 'AC1問以上：{}',
     'post_nobody' : '1問も解いた人がいませんでした :scream:',
-    'post_footer_format' : '\n＊優勝＊は {}！ :tada:', # winner
+    'post_footer_format' : '\n{1}優勝{1}は {0}！ :tada:', # winner, bold-sign
     'rank_marks' : [':first_place_medal:',':second_place_medal:',':third_place_medal:'],
     'other_mark' : ':sparkles:',
-    'promotion' : '<@{}> さんが「{}」に昇級しました！！\nおめでとうございます！ :laughing::tada:'
+    'promotion' : '{2}@{0}{3} さんが「{1}」に昇級しました！！\nおめでとうございます！ :laughing::tada:' # username, color, mention-bra, mention-ket
 }
 post_format_inprogress = {
-    'post_header_format' : '*【{}のAtCoder ACランキング（途中経過）】*',
+    'post_header_format' : '{1}【{0}のAtCoder ACランキング（途中経過）】{1}', # week, bold-sign
     'post_nobody' : 'まだ誰も解いていません :hatching_chick:',
     'post_footer_format' : '\n現在、{}がトップです！ :woman-running::man-running:',
     'rank_marks' : ['']*3,
@@ -59,6 +61,199 @@ def API_sleep(t):
         API_firsttime = False
     else:
         sleep(t)
+
+class Manager(object) :
+    def __init__(self):
+        pass
+    def getChannelId(self, team_name, channel_name) :
+        return None
+    def getTeamId(self, team_name) :
+        return None
+    def getMyId(self) :
+        return None
+    def getTeamMembersData(self, team_id) :
+        return list()
+    def getChannelMembersData(self, channel_id) :
+        return list()
+    def getTeamMembers(self, team_id) :
+        return list()
+    def getChannelMembers(self, channel_id) :
+        return list()
+    def getIdNameDict(self, channel_id):
+        return dict()
+    def post(self, channel_id, message, **kwargs):
+        return None
+
+class MattermostManager(Manager):
+    def __init__(self, token, **kwargs):
+        options={
+            'token' :   token,
+        } | kwargs
+        self.mmDriver = Driver(options=options)
+
+    def getChannelId(self, channel_name, team_name) :
+        team_id = self.getTeamId(team_name)
+        self.mmDriver.login()
+        channel_id = self.mmDriver.channels.get_channel_by_name(team_id, channel_name)['id']
+        self.mmDriver.logout()
+        return channel_id
+
+    def getTeamId(self, team_name):
+        self.mmDriver.login()
+        if not self.mmDriver.teams.check_team_exists(team_name):
+            return None
+        team_id = self.mmDriver.teams.get_team_by_name(team_name)['id']
+        self.mmDriver.logout()
+        return team_id
+
+    def getMyId(self) :
+        self.mmDriver.login()
+        my_id = self.mmDriver.users.get_user(user_id='me')['id']
+        self.mmDriver.logout()
+        return my_id
+
+    def getTeamMembersData(self, team_id, per_page=200) :
+        # get all users for a team
+        # with the max of 200 per page, we need to iterate a bit over the pages
+        users_data = []
+        pgNo = 0
+        def get_users(team_id, pgNo, per_page=per_page):
+            self.mmDriver.login()
+            users_data = self.mmDriver.users.get_users(params={
+                    'in_team'   :   team_id,
+                    'page'      :   str(pgNo),
+                    'per_page'  :   per_page,
+            })
+            self.mmDriver.logout()
+            return users_data
+        teamUsers = get_users(team_id, pgNo)
+        while teamUsers:
+            users_data += teamUsers
+            pgNo += 1
+            teamUsers = get_users(team_id, pgNo)
+        return users_data
+
+    def getChannelMembersData(self, channel_id, per_page=200) :
+        # get all users for a channel
+        # with the max of 200 per page, we need to iterate a bit over the pages
+        users_data = []
+        pgNo = 0
+        def get_users(channel_id, pgNo, per_page=per_page):
+            self.mmDriver.login()
+            users_data = self.mmDriver.users.get_users(params={
+                    'in_channel':   channel_id,
+                    'page'      :   str(pgNo),
+                    'per_page'  :   per_page,
+            })
+            self.mmDriver.logout()
+            return users_data
+        channelUsers = get_users(channel_id, pgNo)
+        while channelUsers:
+            users_data += channelUsers
+            pgNo += 1
+            channelUsers = get_users(channel_id, pgNo)
+        return users_data
+
+    def getChannelMembers(self, channel_id, per_page=200) :
+        users_data = self.getChannelMembersData(channel_id, per_page)
+        return [user['id'] for user in users_data]
+
+    def getIdNameDict(self, channel_id):
+        users_data = self.getChannelMembersData(channel_id)
+        return {user['id'] : user['username'] for user in users_data}
+
+    def post(self, channel_id, message, **kwargs):
+        self.mmDriver.login()
+        param = kwargs | {
+            'channel_id':   channel_id,
+            'message'   :   message,
+            }
+        response = self.mmDriver.posts.create_post(options=param)
+        self.mmDriver.logout()
+        return response
+
+class SlackManager(Manager):
+    def __init__(self, token):
+        self.client = WebClient(token=token)
+
+    def getChannelId(self, channel_name, team_name=None):
+        channels = filter(lambda x: x['name']==channel_name , self._get_channel_list())
+        target = None
+        for c in channels:
+            if target is not None:
+                break
+            else:
+                target = c
+        if target is None:
+            return None
+        else:
+            return target['id']
+
+    def _get_channel_list(self, limit=200):
+        params = {
+            'exclude_archived'  :   'true',
+            'types'             :   'public_channel',
+            'limit'             :   str(limit),
+            }
+        channels = self.client.api_call('conversations.list', params=params)
+        if channels['ok']:
+            return channels['channels']
+        else:
+            return None
+
+    def getChannelMembersData(self, channel_id):
+        return self.client.api_call('conversations.members', params={'channel':channel_id})
+
+    def getMyId(self) :
+        return self.client.api_call('auth.test')['user_id']
+
+    def getChannelMembers(self, channel_id, exclude_bot=True) :
+        channel_members = self.getChannelMembersData(channel_id)['members']
+        return [ member for member in channel_members # if not (bool(member['is_bot']) and exclude_bot) 
+            ]
+
+    def getIdNameDict(self, channel_id):
+        members_data = self.getChannelMembers(channel_id)
+        return {member : member for member in members_data}
+
+    def post(self, channel_id, message, **kwargs):
+        params={
+            'channel'   :   channel_id,
+            'text'      :   message,
+        }
+        ts_file = kwargs['ts_file']
+        os.chdir(kwargs['history_dir'])
+        if os.path.isfile(ts_file):
+            with open(ts_file, 'r') as f:
+                ts = f.readline().rstrip()
+                if not kwargs['solopost']:
+                    params['thread_ts'] = ts
+                    if not kwargs['mute']:
+                        params['reply_broadcast'] = 'True'
+        else:
+            ts = None
+        response = self.client.api_call(
+            'chat.postMessage',
+            params=params
+        )
+        posted_data = response.data
+        if ts is None:
+            ts = posted_data['ts']
+            with open(ts_file, 'w') as f:
+                print(ts, file=f)
+        return response
+
+
+def update_dictionary(dictionary_file=None):
+    transpose = dict()
+    if dictionary_file:
+        with open(dictionary_file) as f:
+            for line in f.readlines():
+                if line.strip()[0] != '#':
+                    a, b = line.split()[:2]
+                    transpose[b] = a
+    return transpose
+
 
 def get_channel_list(client, limit=200):
     params = {
@@ -100,7 +295,9 @@ if __name__ == '__main__':
     parser.add_argument('cycle_str') # e.g. '先週'
     parser.add_argument('--inprogress', help='show the status in progress, without updating the record.',
                         action='store_true')
-    parser.add_argument('--noslack', help='do not post to slack.',
+    parser.add_argument('--system', help='slack or mattermost.',
+                        default='mattermost')
+    parser.add_argument('--local', help='do not post to mattermost/slack.',
                         action='store_true')
     parser.add_argument('--mute', help='post in thread without showing on channel.',
                         action='store_true')
@@ -117,18 +314,30 @@ if __name__ == '__main__':
                         help='how many rankers?')
     parser.add_argument('-s', '--sufficiency', type=int, default=0,
                         help='set sufficient ACs to show in the ranking.')
+    parser.add_argument('-t', '--team', default=team_name,
+                        help='team to post.')
     parser.add_argument('-c', '--channel', default=channel_name,
-                        help='slack channel to post.')
-    parser.add_argument('--slacktoken', default=None,
-                        help='slack bot token.')
+                        help='channel to post.')
+    parser.add_argument('--token', default=None,
+                        help='bot token.')
+    parser.add_argument('--server', default='',
+                        help='mattermost server.')
+    parser.add_argument('--scheme', default='https',
+                        help='mattermost scheme.')
+    parser.add_argument('--port', type=int, default=443,
+                        help='mattermost port.')
+    parser.add_argument('--token-id', default='',
+                        help='mattermost token_id.')
     parser.add_argument('--API-interval', type=float, default=API_interval,
                         help='set intervals (sec.) between AtCoder Problems API calls (default={}).'.format(API_interval))
+    parser.add_argument('--id-dictionary', default=None,
+                        help='Set dictironary file to transpose IDs, to keep the order.')
     args = parser.parse_args()
 
     API_interval = args.API_interval
     last_rec_file = last_rec_file_format.format(args.cycle)
-    if args.noslack:
-        post_to_slack = False
+    if args.local:
+        post_to_sns = False
     if args.inprogress:
         update_link = False
         for k, v in post_format_inprogress.items():
@@ -138,31 +347,67 @@ if __name__ == '__main__':
     N_ranking = args.nranks
     channel_name = args.channel
     rank_marks += [other_mark]*N_ranking
-    post_header = post_header_format.format(args.cycle_str)
     ts_file = ts_file_format.format(args.cycle)
 
     userlist_file_path = base_dir + userlist_file
     last_rec_file_path = rec_dir + last_rec_file
     latest_rec_file_path = rec_dir + latest_rec_file
-    slacktoken_file_path = base_dir + slacktoken_file
+    token_file_path = base_dir + token_file
 
-    if args.slacktoken:
-        token = args.slacktoken
+    if args.token:
+        token = args.token
     else:
-        with open(slacktoken_file_path, 'r') as f:
+        with open(token_file_path, 'r') as f:
             token = f.readline().rstrip()
-    web_client = WebClient(token=token)
+
+    if args.system.lower() == 'mattermost':    
+        # if os.path.exists(config_file_path):
+        #     with open(config_file_path, 'r') as f:
+        #         config = yaml.safe_load(f)
+        # else:
+        config = defaultdict(lambda: None)
+        if args.team:
+            team_name = args.team
+        elif 'team' in config:
+            team_name = config['team']
+        if args.channel:
+            channel_name = args.channel
+        elif 'channel' in config:
+            channel_name = config['channel']
+        config.pop('team', None)
+        config.pop('channel', None)
+        config.pop('token', None)
+        config['url'] = args.server
+        config['scheme'] = args.scheme
+        config['port'] = args.port
+        config['token_id'] = args.token_id
+        manager = MattermostManager(token, **config)
+        bold_sign, mention_bra, mention_ket = '**', '', ''
+    else: # Slack
+        team_name = url = None
+        if args.channel:
+            channel_name = args.channel
+        manager = SlackManager(token)
+        bold_sign, mention_bra, mention_ket = '*', '<', '>'
+
+    post_header = post_header_format.format(args.cycle_str, bold_sign)
+    channel_id = manager.getChannelId(channel_name, team_name)
+    id_name_dict = manager.getIdNameDict(channel_id)
+    transpose_dict = update_dictionary(args.id_dictionary)
+    id_name_dict = manager.getIdNameDict(channel_id)
 
     # read member list
-    slack_members = set([ member['id'] for member in web_client.api_call('users.list')['members'] if not member['deleted']])
+    members = manager.getChannelMembers(channel_id)
     member_info = defaultdict(dict)
     with open(userlist_file_path, 'r') as f:
         lines = f.readlines()
         for line in lines:
-            nickname, slackid, atcoderid = line.rstrip().split('\t')[:3]
-            if slackid in slack_members:
+            nickname, snsid, atcoderid = line.rstrip().split('\t')[:3]
+            if snsid in transpose_dict:
+                snsid = transpose_dict[snsid]
+            if snsid in members:
                 member_info[atcoderid]['nickname'] = nickname
-                member_info[atcoderid]['slackid'] = slackid
+                member_info[atcoderid]['snsid'] = snsid
     atcoder_ids = set(member_info.keys())
 
     # read the previous record
@@ -255,49 +500,40 @@ if __name__ == '__main__':
     winners_str_list = []
     if N > 0:
         for atcoderid, ac, point, rank in ranking_list:
-            slackid = member_info[atcoderid]['slackid']
-            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], slackid, ac, point))
+            snsid = member_info[atcoderid]['snsid']
+            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], id_name_dict[snsid], ac, point, mention_bra, mention_ket))
             if rank == 1:
-                winners_str_list.append(rank_marks[0]+'<@{}> さん'.format(slackid))
+                winners_str_list.append(rank_marks[0]+'{1}@{0}{2} さん'.format(id_name_dict[snsid], mention_bra, mention_ket))
         if remain_list and args.allsolvers:
-            remain_str_list = [ '<@{}>'.format(member_info[x[0]]['slackid']) for x in remain_list ]
+            remain_str_list = [ '{1}@{0}{2}'.format(id_name_dict[member_info[x[0]]['snsid']], mention_bra, mention_ket) for x in remain_list ]
             post_lines.append(
                 post_remain_format.format('、'.join(remain_str_list))
             )
         post_lines.append(
-            post_footer_format.format('、'.join(winners_str_list))
+            post_footer_format.format('、'.join(winners_str_list), bold_sign)
         )
     else:
         post_lines.append(post_nobody)
     message = '\n'.join(post_lines)
 
-    if post_to_slack:
+    if post_to_sns:
         if len(user_scores) > 0:
-            channel_id = get_channel_id(web_client, channel_name)
-            params={
-                'channel': channel_id,
-                'text': message,
-                #'thread_ts': thread_ts,
-                #'reply_broadcast': reply_broadcast,
-            }
+            # channel_id = manager.getChannelId(channel_name, team_name)
             os.chdir(rec_dir)
-            if os.path.isfile(ts_file) and (not args.newthread):
-                with open(ts_file, 'r') as f:
-                    ts = f.readline().rstrip()
-                    params['thread_ts'] = ts
-                    if not args.mute:
-                        params['reply_broadcast'] = 'True'
-            else:
-                ts = None
-            response = web_client.api_call(
-                'chat.postMessage',
-                params=params
-            )
-            posted_data = response.data
-            if ts is None:
-                ts = posted_data['ts']
-                with open(ts_file, 'w') as f:
-                    print(ts, file=f)        
+            # if os.path.isfile(ts_file) and (not args.newthread):
+            #     with open(ts_file, 'r') as f:
+            #         ts = f.readline().rstrip()
+            #         params['thread_ts'] = ts
+            #         if not args.mute:
+            #             params['reply_broadcast'] = 'True'
+            # else:
+            #     ts = None
+            response = manager.post(channel_id, message)
+            # posted_data = response.data
+            # if ts is None:
+            #     ts = posted_data['ts']
+            #     with open(ts_file, 'w') as f:
+            #         print(ts, file=f)        
     else:
         print(message)
 
@@ -310,14 +546,11 @@ if __name__ == '__main__':
                 pc = prev // 400 if prev > 0 else -1
                 if pc < cc < len(colors):
                     message = post_format['promotion'].format(
-                        member_info[atcoderid]['slackid'],
+                        id_name_dict[member_info[atcoderid]['snsid']],
                         colors[cc],
                     )
-                    if post_to_slack:
-                        web_client.api_call('chat.postMessage', params={
-                            'channel': channel_id,
-                            'text': message,
-                        })
+                    if post_to_sns:
+                        manager.post(channel_id, message)
                     else:
                         print(message)
 
