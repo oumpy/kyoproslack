@@ -19,6 +19,8 @@ scope_days = 10 # None : inifinite
 url_root  = "https://atcoder.jp"
 url_contests = "https://atcoder.jp/contests/"
 
+bold_sign = '**'
+
 regular_starting_time = datetime.time(21,0)
 irregular_caution_message = ':scream: 開始時刻注意！'
 
@@ -92,12 +94,12 @@ def info2post(info):
         end_str = end_datetime.strftime('%H:%M')
         date_line = '{}-{}'.format(start_str, end_str)
         if not regular_start:
-            date_line += ' *({})*'.format(irregular_caution_message)
+            date_line += ' {1}({0}){1}'.format(irregular_caution_message, bold_sign)
     else:
         end_str = end_datetime.strftime('%Y-%m-%d(%a) %H:%M')
         date_line = '{} - {}'.format(start_str, end_str)
         if not regular_start:
-            date_line += '\n*({})*'.format(irregular_caution_message)
+            date_line += '\n{1}({0}){1}'.format(irregular_caution_message, bold_sign)
     rated_line = 'rated: {}'.format(rated.strip())
 
     # if re.match(r'^AtCoder (Beginner|Regular|Grand) Contest', name):
