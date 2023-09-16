@@ -548,6 +548,8 @@ if __name__ == '__main__':
                     message = post_format['promotion'].format(
                         id_name_dict[member_info[atcoderid]['snsid']],
                         colors[cc],
+                        mention_bra,
+                        mention_ket,
                     )
                     if post_to_sns:
                         manager.post(channel_id, message)
