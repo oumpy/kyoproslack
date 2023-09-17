@@ -537,6 +537,13 @@ if __name__ == '__main__':
     else:
         print(message)
 
+    # update the symlink for last record
+    if update_link:
+        os.chdir(rec_dir)
+        if os.path.islink(last_rec_file):
+            os.unlink(last_rec_file)
+        os.symlink(rec_file, last_rec_file)
+
     if args.postpromotion:
         for atcoderid in atcoder_ids:
             cur = user_scores[atcoderid]['rating']
@@ -556,13 +563,7 @@ if __name__ == '__main__':
                     else:
                         print(message)
 
-    # update the symlink for last record
-    if update_link:
-        os.chdir(rec_dir)
-        if os.path.islink(last_rec_file):
-            os.unlink(last_rec_file)
-        os.symlink(rec_file, last_rec_file)
-    if args.postpromotion:
+        # update symlink for the latest rating data.
         os.chdir(rec_dir)
         if os.path.islink(latest_rec_file):
             os.unlink(latest_rec_file)
