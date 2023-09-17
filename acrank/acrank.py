@@ -8,6 +8,7 @@ from datetime import datetime
 from slack_sdk import WebClient
 from mattermostdriver import Driver
 import argparse
+from typing import List, Dict, Optional, Union, Any
 
 # Example:
 # python acrank.py week 先週
@@ -87,11 +88,8 @@ class Manager(object) :
 class MattermostManager(Manager):
     bold_sign, mention_bra, mention_ket = '**', '', ''
 
-    def __init__(self, token, **kwargs):
-        options={
-            'token' :   token,
-        } | kwargs
-        self.mmDriver = Driver(options=options)
+    def __init__(self, **config):
+        self.mmDriver = Driver(options=config)
 
     def getChannelId(self, channel_name, team_name) :
         team_id = self.getTeamId(team_name)
@@ -177,8 +175,8 @@ class MattermostManager(Manager):
 class SlackManager(Manager):
     bold_sign, mention_bra, mention_ket = '*', '<', '>'
 
-    def __init__(self, token):
-        self.client = WebClient(token=token)
+    def __init__(self, **config: Dict[str, Any]):
+        self.client = WebClient(token=config['token'])
 
     def getChannelId(self, channel_name, team_name=None):
         channels = filter(lambda x: x['name']==channel_name , self._get_channel_list())
@@ -380,17 +378,20 @@ if __name__ == '__main__':
             channel_name = config['channel']
         config.pop('team', None)
         config.pop('channel', None)
-        config.pop('token', None)
         config['url'] = args.server
         config['scheme'] = args.scheme
         config['port'] = args.port
         config['token_id'] = args.token_id
-        manager = MattermostManager(token, **config)
+        config['token'] = token
+        ManagerClass = MattermostManager
     else: # Slack
         team_name = url = None
         if args.channel:
             channel_name = args.channel
-        manager = SlackManager(token)
+        config = {'token': token}
+        ManagerClass = SlackManager
+    
+    manager = ManagerClass(**config)
 
     post_header = post_header_format.format(args.cycle_str, manager.bold_sign)
     channel_id = manager.getChannelId(channel_name, team_name)
