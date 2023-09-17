@@ -85,6 +85,8 @@ class Manager(object) :
         return None
 
 class MattermostManager(Manager):
+    bold_sign, mention_bra, mention_ket = '**', '', ''
+
     def __init__(self, token, **kwargs):
         options={
             'token' :   token,
@@ -173,6 +175,8 @@ class MattermostManager(Manager):
         return response
 
 class SlackManager(Manager):
+    bold_sign, mention_bra, mention_ket = '*', '<', '>'
+
     def __init__(self, token):
         self.client = WebClient(token=token)
 
@@ -382,15 +386,13 @@ if __name__ == '__main__':
         config['port'] = args.port
         config['token_id'] = args.token_id
         manager = MattermostManager(token, **config)
-        bold_sign, mention_bra, mention_ket = '**', '', ''
     else: # Slack
         team_name = url = None
         if args.channel:
             channel_name = args.channel
         manager = SlackManager(token)
-        bold_sign, mention_bra, mention_ket = '*', '<', '>'
 
-    post_header = post_header_format.format(args.cycle_str, bold_sign)
+    post_header = post_header_format.format(args.cycle_str, manager.bold_sign)
     channel_id = manager.getChannelId(channel_name, team_name)
     id_name_dict = manager.getIdNameDict(channel_id)
     transpose_dict = update_dictionary(args.id_dictionary)
@@ -501,16 +503,16 @@ if __name__ == '__main__':
     if N > 0:
         for atcoderid, ac, point, rank in ranking_list:
             snsid = member_info[atcoderid]['snsid']
-            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], id_name_dict[snsid], ac, point, mention_bra, mention_ket))
+            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], id_name_dict[snsid], ac, point, manager.mention_bra, manager.mention_ket))
             if rank == 1:
-                winners_str_list.append(rank_marks[0]+'{1}@{0}{2} さん'.format(id_name_dict[snsid], mention_bra, mention_ket))
+                winners_str_list.append(rank_marks[0]+'{1}@{0}{2} さん'.format(id_name_dict[snsid], manager.mention_bra, manager.mention_ket))
         if remain_list and args.allsolvers:
-            remain_str_list = [ '{1}@{0}{2}'.format(id_name_dict[member_info[x[0]]['snsid']], mention_bra, mention_ket) for x in remain_list ]
+            remain_str_list = [ '{1}@{0}{2}'.format(id_name_dict[member_info[x[0]]['snsid']], manager.mention_bra, manager.mention_ket) for x in remain_list ]
             post_lines.append(
                 post_remain_format.format('、'.join(remain_str_list))
             )
         post_lines.append(
-            post_footer_format.format('、'.join(winners_str_list), bold_sign)
+            post_footer_format.format('、'.join(winners_str_list), manager.bold_sign)
         )
     else:
         post_lines.append(post_nobody)
@@ -555,8 +557,8 @@ if __name__ == '__main__':
                     message = post_format['promotion'].format(
                         id_name_dict[member_info[atcoderid]['snsid']],
                         colors[cc],
-                        mention_bra,
-                        mention_ket,
+                        manager.mention_bra,
+                        manager.mention_ket,
                     )
                     if post_to_sns:
                         manager.post(channel_id, message)
