@@ -8,6 +8,7 @@ from datetime import datetime
 from slack_sdk import WebClient
 from mattermostdriver import Driver
 import argparse
+from typing import List, Dict, Optional, Union, Any
 
 # Example:
 # python acrank.py week 先週
@@ -85,11 +86,10 @@ class Manager(object) :
         return None
 
 class MattermostManager(Manager):
-    def __init__(self, token, **kwargs):
-        options={
-            'token' :   token,
-        } | kwargs
-        self.mmDriver = Driver(options=options)
+    bold_sign, mention_bra, mention_ket = '**', '', ''
+
+    def __init__(self, **config):
+        self.mmDriver = Driver(options=config)
 
     def getChannelId(self, channel_name, team_name) :
         team_id = self.getTeamId(team_name)
@@ -173,8 +173,10 @@ class MattermostManager(Manager):
         return response
 
 class SlackManager(Manager):
-    def __init__(self, token):
-        self.client = WebClient(token=token)
+    bold_sign, mention_bra, mention_ket = '*', '<', '>'
+
+    def __init__(self, **config: Dict[str, Any]):
+        self.client = WebClient(token=config['token'])
 
     def getChannelId(self, channel_name, team_name=None):
         channels = filter(lambda x: x['name']==channel_name , self._get_channel_list())
@@ -376,21 +378,22 @@ if __name__ == '__main__':
             channel_name = config['channel']
         config.pop('team', None)
         config.pop('channel', None)
-        config.pop('token', None)
         config['url'] = args.server
         config['scheme'] = args.scheme
         config['port'] = args.port
         config['token_id'] = args.token_id
-        manager = MattermostManager(token, **config)
-        bold_sign, mention_bra, mention_ket = '**', '', ''
+        config['token'] = token
+        ManagerClass = MattermostManager
     else: # Slack
         team_name = url = None
         if args.channel:
             channel_name = args.channel
-        manager = SlackManager(token)
-        bold_sign, mention_bra, mention_ket = '*', '<', '>'
+        config = {'token': token}
+        ManagerClass = SlackManager
+    
+    manager = ManagerClass(**config)
 
-    post_header = post_header_format.format(args.cycle_str, bold_sign)
+    post_header = post_header_format.format(args.cycle_str, manager.bold_sign)
     channel_id = manager.getChannelId(channel_name, team_name)
     id_name_dict = manager.getIdNameDict(channel_id)
     transpose_dict = update_dictionary(args.id_dictionary)
@@ -501,16 +504,16 @@ if __name__ == '__main__':
     if N > 0:
         for atcoderid, ac, point, rank in ranking_list:
             snsid = member_info[atcoderid]['snsid']
-            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], id_name_dict[snsid], ac, point, mention_bra, mention_ket))
+            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], id_name_dict[snsid], ac, point, manager.mention_bra, manager.mention_ket))
             if rank == 1:
-                winners_str_list.append(rank_marks[0]+'{1}@{0}{2} さん'.format(id_name_dict[snsid], mention_bra, mention_ket))
+                winners_str_list.append(rank_marks[0]+'{1}@{0}{2} さん'.format(id_name_dict[snsid], manager.mention_bra, manager.mention_ket))
         if remain_list and args.allsolvers:
-            remain_str_list = [ '{1}@{0}{2}'.format(id_name_dict[member_info[x[0]]['snsid']], mention_bra, mention_ket) for x in remain_list ]
+            remain_str_list = [ '{1}@{0}{2}'.format(id_name_dict[member_info[x[0]]['snsid']], manager.mention_bra, manager.mention_ket) for x in remain_list ]
             post_lines.append(
                 post_remain_format.format('、'.join(remain_str_list))
             )
         post_lines.append(
-            post_footer_format.format('、'.join(winners_str_list), bold_sign)
+            post_footer_format.format('、'.join(winners_str_list), manager.bold_sign)
         )
     else:
         post_lines.append(post_nobody)
@@ -537,6 +540,13 @@ if __name__ == '__main__':
     else:
         print(message)
 
+    # update the symlink for last record
+    if update_link:
+        os.chdir(rec_dir)
+        if os.path.islink(last_rec_file):
+            os.unlink(last_rec_file)
+        os.symlink(rec_file, last_rec_file)
+
     if args.postpromotion:
         for atcoderid in atcoder_ids:
             cur = user_scores[atcoderid]['rating']
@@ -548,21 +558,15 @@ if __name__ == '__main__':
                     message = post_format['promotion'].format(
                         id_name_dict[member_info[atcoderid]['snsid']],
                         colors[cc],
-                        mention_bra,
-                        mention_ket,
+                        manager.mention_bra,
+                        manager.mention_ket,
                     )
                     if post_to_sns:
                         manager.post(channel_id, message)
                     else:
                         print(message)
 
-    # update the symlink for last record
-    if update_link:
-        os.chdir(rec_dir)
-        if os.path.islink(last_rec_file):
-            os.unlink(last_rec_file)
-        os.symlink(rec_file, last_rec_file)
-    if args.postpromotion:
+        # update symlink for the latest rating data.
         os.chdir(rec_dir)
         if os.path.islink(latest_rec_file):
             os.unlink(latest_rec_file)
