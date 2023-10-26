@@ -20,7 +20,7 @@ token_file = 'mattermost_token'
 
 team_name = 'main'
 channel_name = 'competition'
-base_dir = os.environ['HOME'] + '/var/acrank/'
+base_dir = os.environ['HOME'] + '/.acrank/'
 rec_dir = base_dir + 'record/'
 userlist_file = 'memberlist.tsv'
 userlist_file_path = base_dir + userlist_file
