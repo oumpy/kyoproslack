@@ -42,7 +42,8 @@ post_format = {
     'post_footer_format' : '\n{1}優勝{1}は {0}！ :tada:', # winner, bold-sign
     'rank_marks' : [':first_place_medal:',':second_place_medal:',':third_place_medal:'],
     'other_mark' : ':sparkles:',
-    'promotion' : '{2}@{0}{3} さんが「{1}」に昇級しました！！\nおめでとうございます！ :laughing::tada:' # username, color, mention-bra, mention-ket
+    'promotion' : '{2}@{0}{3} さんが「{1}」に昇級しました！！\nおめでとうございます！ :laughing::tada:', # username, color, mention-bra, mention-ket
+    'relegation' : '{2}@{0}{3} さんが「{1}」に降級しました。\nまたがんばりましょう！ :sob:', # username, color, mention-bra, mention-ket
 }
 post_format_inprogress = {
     'post_header_format' : '{1}【{0}のAtCoder ACランキング（途中経過）】{1}', # week, bold-sign
@@ -554,8 +555,13 @@ if __name__ == '__main__':
             if (cur is not None) and (prev is not None):
                 cc = cur // 400 if cur > 0 else -1
                 pc = prev // 400 if prev > 0 else -1
+                format_name = None
                 if pc < cc < len(colors):
-                    message = post_format['promotion'].format(
+                    format_name = 'promotion'
+                elif 0 <= cur < prev:
+                    format_name = 'relegation'
+                if format_name is not None:
+                    message = post_format[format_name].format(
                         id_name_dict[member_info[atcoderid]['snsid']],
                         colors[cc],
                         manager.mention_bra,
