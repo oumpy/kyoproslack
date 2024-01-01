@@ -505,7 +505,7 @@ if __name__ == '__main__':
     if N > 0:
         for atcoderid, ac, point, rank in ranking_list:
             snsid = member_info[atcoderid]['snsid']
-            post_lines.append(post_line_format.format(rank, rank_marks[rank-1], id_name_dict[snsid], ac, point, manager.mention_bra, manager.mention_ket))
+            post_lines.append(post_line_format.format(rank, rank_marks[rank-1 if rank < len(rank_marks) else -1], id_name_dict[snsid], ac, point, manager.mention_bra, manager.mention_ket))
             if rank == 1:
                 winners_str_list.append(rank_marks[0]+'{1}@{0}{2} さん'.format(id_name_dict[snsid], manager.mention_bra, manager.mention_ket))
         if remain_list and args.allsolvers:
