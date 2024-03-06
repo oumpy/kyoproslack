@@ -558,7 +558,7 @@ if __name__ == '__main__':
                 format_name = None
                 if pc < cc < len(colors):
                     format_name = 'promotion'
-                elif 0 <= cur < prev:
+                elif 0 <= cc < pc:
                     format_name = 'relegation'
                 if format_name is not None:
                     message = post_format[format_name].format(
