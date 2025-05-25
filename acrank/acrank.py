@@ -6,7 +6,7 @@ from collections import defaultdict
 import os
 from datetime import datetime
 from slack_sdk import WebClient
-from mattermostdriver import Driver
+from mattermostautodriver import Driver
 import argparse
 from typing import List, Dict, Optional, Union, Any
 
@@ -101,7 +101,7 @@ class MattermostManager(Manager):
 
     def getTeamId(self, team_name):
         self.mmDriver.login()
-        if not self.mmDriver.teams.check_team_exists(team_name):
+        if not self.mmDriver.teams.team_exists(team_name):
             return None
         team_id = self.mmDriver.teams.get_team_by_name(team_name)['id']
         self.mmDriver.logout()
