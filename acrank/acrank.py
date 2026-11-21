@@ -472,6 +472,18 @@ def get_rating(atcoderid, interval=API_interval):
         warn('could not get the rating of {}: {}'.format(atcoderid, e))
         return None
 
+def replace_symlink(target, link_name):
+    # point link_name at target atomically (in the current directory)
+    if os.path.lexists(link_name) and not os.path.islink(link_name):
+        backup = '{}.bak-{}'.format(link_name, datetime.now().strftime(time_format))
+        warn('{} was a regular file; renamed to {}'.format(link_name, backup))
+        os.rename(link_name, backup)
+    tmp = '{}.tmp-{}'.format(link_name, os.getpid())
+    if os.path.lexists(tmp):
+        os.unlink(tmp)
+    os.symlink(target, tmp)
+    os.replace(tmp, link_name)
+
 def _excepthook(exc_type, exc, tb):
     # put a timestamp in the log before the traceback
     warn('aborted: {}'.format(exc_type.__name__))
@@ -609,7 +621,8 @@ if __name__ == '__main__':
     # read the previous record
     user_last_scores = defaultdict(lambda: defaultdict(lambda: None))
     new_members = set()
-    if os.path.isfile(last_rec_file_path):
+    first_run = not os.path.isfile(last_rec_file_path)
+    if not first_run:
         with open(last_rec_file_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
@@ -674,6 +687,9 @@ if __name__ == '__main__':
     except FetchError as e:
         # AtCoder Problems is unavailable: leave all the records untouched, so that the next run covers this cycle.
         warn('{}; aborted without posting or updating the records'.format(e))
+        sys.exit(1)
+    if not user_scores:
+        warn('no member status was obtained; aborted without posting or updating the records')
         sys.exit(1)
     # write the new status
     with open(rec_file_path, 'w') as f:
@@ -740,7 +756,9 @@ if __name__ == '__main__':
     message = '\n'.join(post_lines)
 
     if post_to_sns:
-        if len(user_scores) > 0:
+        if first_run:
+            warn('no previous record for "{}"; recorded the current status without posting'.format(args.cycle))
+        else:
             # channel_id = manager.getChannelId(channel_name, team_name)
             os.chdir(rec_dir)
             # if os.path.isfile(ts_file) and (not args.newthread):
@@ -763,9 +781,7 @@ if __name__ == '__main__':
     # update the symlink for last record
     if update_link:
         os.chdir(rec_dir)
-        if os.path.islink(last_rec_file):
-            os.unlink(last_rec_file)
-        os.symlink(rec_file, last_rec_file)
+        replace_symlink(rec_file, last_rec_file)
 
     if args.postpromotion:
         for atcoderid, scores in user_scores.items():
@@ -793,8 +809,6 @@ if __name__ == '__main__':
 
         # update symlink for the latest rating data.
         os.chdir(rec_dir)
-        if os.path.islink(latest_rec_file):
-            os.unlink(latest_rec_file)
-        os.symlink(rec_file, latest_rec_file)
+        replace_symlink(rec_file, latest_rec_file)
 
     manager.finish()
