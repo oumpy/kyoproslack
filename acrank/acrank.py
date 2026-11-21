@@ -142,6 +142,7 @@ class MattermostManager(Manager):
         self.retries = config.pop('retries', MM_retries)
         self.mmDriver = Driver(options=config)
         self.logged_in = False
+        self.members_cache = dict()
         self.duplicate_checks = [] # (due time, channel_id, user_id, message, since)
 
     @staticmethod
@@ -191,10 +192,15 @@ class MattermostManager(Manager):
 
     def getChannelId(self, channel_name, team_name) :
         team_id = self.getTeamId(team_name)
+        if team_id is None:
+            raise RuntimeError('team not found: {}'.format(team_name))
         return self._call('get channel', self.mmDriver.channels.get_channel_by_name, team_id, channel_name)['id']
 
     def getTeamId(self, team_name):
-        if not self._call('check team', self.mmDriver.teams.team_exists, team_name):
+        exists = self._call('check team', self.mmDriver.teams.team_exists, team_name)
+        if isinstance(exists, dict): # the API returns {"exists": bool}
+            exists = exists.get('exists', False)
+        if not exists:
             return None
         return self._call('get team', self.mmDriver.teams.get_team_by_name, team_name)['id']
 
@@ -221,8 +227,10 @@ class MattermostManager(Manager):
         return self._getUsersData('in_team', team_id, per_page)
 
     def getChannelMembersData(self, channel_id, per_page=200) :
-        # get all users for a channel
-        return self._getUsersData('in_channel', channel_id, per_page)
+        # get all users for a channel (fetched once per run, then cached)
+        if channel_id not in self.members_cache:
+            self.members_cache[channel_id] = self._getUsersData('in_channel', channel_id, per_page)
+        return self.members_cache[channel_id]
 
     def getChannelMembers(self, channel_id, per_page=200) :
         users_data = self.getChannelMembersData(channel_id, per_page)
