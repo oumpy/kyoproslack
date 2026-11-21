@@ -804,10 +804,11 @@ if __name__ == '__main__':
             cur = scores['rating']
             prev = user_last_scores[atcoderid]['latest_rating'] if atcoderid in user_last_scores else None
             if (cur is not None) and (prev is not None):
-                cc = cur // 400 if cur > 0 else -1
-                pc = prev // 400 if prev > 0 else -1
+                red = len(colors) - 1 # 3200+ is still red
+                cc = min(cur // 400, red) if cur > 0 else -1
+                pc = min(prev // 400, red) if prev > 0 else -1
                 format_name = None
-                if pc < cc < len(colors):
+                if pc < cc:
                     format_name = 'promotion'
                 elif 0 <= cc < pc:
                     format_name = 'relegation'
