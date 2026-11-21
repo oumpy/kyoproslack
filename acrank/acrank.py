@@ -2,11 +2,15 @@
 # -*- coding: utf-8 -*-
 import requests
 from time import sleep
+import sys
+import re
+import logging
 from collections import defaultdict
 import os
 from datetime import datetime
 from slack_sdk import WebClient
 from mattermostautodriver import Driver
+import httpx
 import argparse
 from typing import List, Dict, Optional, Union, Any
 
@@ -56,6 +60,14 @@ colors = ['灰色','茶色','緑','水色','青','黄色','橙','赤']
 API_interval = 1.0
 # maybe 1.0 is a bit too large, since the requests are light.
 
+MM_timeout = 60.0       # seconds per Mattermost API request (None = wait forever)
+MM_retries = 8          # retries of a Mattermost API call on transient errors (5,10,20,40,60,60,... s)
+transient_status = {429, 500, 502, 503, 504}
+
+# mattermostautodriver logs every HTTP error body (e.g. whole nginx error pages) to stderr;
+# keep the log quiet: warn() shows the error id / page title instead (see describe_error).
+logging.getLogger('mattermostautodriver').addHandler(logging.NullHandler())
+
 API_firsttime = True
 def API_sleep(t):
     global API_firsttime
@@ -63,6 +75,36 @@ def API_sleep(t):
         API_firsttime = False
     else:
         sleep(t)
+
+def warn(message):
+    print('[{}] acrank: {}'.format(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), message),
+          file=sys.stderr, flush=True)
+
+def retry_wait(n):
+    # n-th retry (0-origin): 5, 10, 20, 40, 60, 60, ... seconds
+    return min(60, 5 * 2 ** n)
+
+def describe_error(e):
+    if isinstance(e, httpx.HTTPStatusError):
+        return 'HTTP {}{}'.format(e.response.status_code, _response_excerpt(e.response))
+    return '{}: {}'.format(type(e).__name__, e)
+
+def _response_excerpt(response, limit=120):
+    # the server's error id/message (JSON), or the title of an HTML error page (nginx)
+    try:
+        data = response.json()
+        if isinstance(data, dict) and (data.get('id') or data.get('message')):
+            return ' ({})'.format(str(data.get('id') or data.get('message'))[:limit])
+    except Exception:
+        pass
+    try:
+        text = ' '.join(response.text.split())
+    except Exception:
+        return ''
+    m = re.search(r'<title>(.*?)</title>', text, re.IGNORECASE)
+    if m:
+        text = m.group(1)
+    return ' ({})'.format(text[:limit]) if text else ''
 
 class Manager(object) :
     def __init__(self):
@@ -90,70 +132,79 @@ class MattermostManager(Manager):
     bold_sign, mention_bra, mention_ket = '**', '', ''
 
     def __init__(self, **config):
+        self.retries = config.pop('retries', MM_retries)
         self.mmDriver = Driver(options=config)
+        self.logged_in = False
+
+    @staticmethod
+    def _is_transient(e):
+        # network errors, timeouts, and 429/5xx (incl. nginx 502 while Mattermost is stalled).
+        # mattermostautodriver raises its own exceptions for 400/401/403/404/405/413/501,
+        # and re-raises httpx.HTTPStatusError for other statuses.
+        if isinstance(e, (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)):
+            return True
+        if isinstance(e, httpx.HTTPStatusError):
+            return e.response.status_code in transient_status
+        return False
+
+    def _with_retry(self, description, func, *args, **kwargs):
+        for n in range(self.retries + 1):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if n >= self.retries or not self._is_transient(e):
+                    raise
+                wait = retry_wait(n)
+                warn('{} failed ({}); retrying in {} s ({}/{})'.format(
+                    description, describe_error(e), wait, n + 1, self.retries))
+                sleep(wait)
+
+    def _login(self):
+        # With a personal access token, login() only sets the token and fetches the own user.
+        # We do it once per run and never log out: logging out (as this script used to do after
+        # every call) only revokes the server-side session that other bots with the same token share.
+        if not self.logged_in:
+            self._with_retry('login', self.mmDriver.login)
+            self.logged_in = True
+
+    def _call(self, description, func, *args, **kwargs):
+        self._login()
+        return self._with_retry(description, func, *args, **kwargs)
 
     def getChannelId(self, channel_name, team_name) :
         team_id = self.getTeamId(team_name)
-        self.mmDriver.login()
-        channel_id = self.mmDriver.channels.get_channel_by_name(team_id, channel_name)['id']
-        self.mmDriver.logout()
-        return channel_id
+        return self._call('get channel', self.mmDriver.channels.get_channel_by_name, team_id, channel_name)['id']
 
     def getTeamId(self, team_name):
-        self.mmDriver.login()
-        if not self.mmDriver.teams.team_exists(team_name):
+        if not self._call('check team', self.mmDriver.teams.team_exists, team_name):
             return None
-        team_id = self.mmDriver.teams.get_team_by_name(team_name)['id']
-        self.mmDriver.logout()
-        return team_id
+        return self._call('get team', self.mmDriver.teams.get_team_by_name, team_name)['id']
 
     def getMyId(self) :
-        self.mmDriver.login()
-        my_id = self.mmDriver.users.get_user(user_id='me')['id']
-        self.mmDriver.logout()
-        return my_id
+        return self._call('get me', self.mmDriver.users.get_user, user_id='me')['id']
+
+    def _getUsersData(self, scope_key, scope_id, per_page=200):
+        # with the max of 200 per page, we need to iterate a bit over the pages
+        users_data = []
+        pgNo = 0
+        while True:
+            page = self._call('get users', self.mmDriver.users.get_users, params={
+                    scope_key   :   scope_id,
+                    'page'      :   str(pgNo),
+                    'per_page'  :   per_page,
+            })
+            if not page:
+                return users_data
+            users_data += page
+            pgNo += 1
 
     def getTeamMembersData(self, team_id, per_page=200) :
         # get all users for a team
-        # with the max of 200 per page, we need to iterate a bit over the pages
-        users_data = []
-        pgNo = 0
-        def get_users(team_id, pgNo, per_page=per_page):
-            self.mmDriver.login()
-            users_data = self.mmDriver.users.get_users(params={
-                    'in_team'   :   team_id,
-                    'page'      :   str(pgNo),
-                    'per_page'  :   per_page,
-            })
-            self.mmDriver.logout()
-            return users_data
-        teamUsers = get_users(team_id, pgNo)
-        while teamUsers:
-            users_data += teamUsers
-            pgNo += 1
-            teamUsers = get_users(team_id, pgNo)
-        return users_data
+        return self._getUsersData('in_team', team_id, per_page)
 
     def getChannelMembersData(self, channel_id, per_page=200) :
         # get all users for a channel
-        # with the max of 200 per page, we need to iterate a bit over the pages
-        users_data = []
-        pgNo = 0
-        def get_users(channel_id, pgNo, per_page=per_page):
-            self.mmDriver.login()
-            users_data = self.mmDriver.users.get_users(params={
-                    'in_channel':   channel_id,
-                    'page'      :   str(pgNo),
-                    'per_page'  :   per_page,
-            })
-            self.mmDriver.logout()
-            return users_data
-        channelUsers = get_users(channel_id, pgNo)
-        while channelUsers:
-            users_data += channelUsers
-            pgNo += 1
-            channelUsers = get_users(channel_id, pgNo)
-        return users_data
+        return self._getUsersData('in_channel', channel_id, per_page)
 
     def getChannelMembers(self, channel_id, per_page=200) :
         users_data = self.getChannelMembersData(channel_id, per_page)
@@ -164,14 +215,12 @@ class MattermostManager(Manager):
         return {user['id'] : user['username'] for user in users_data}
 
     def post(self, channel_id, message, **kwargs):
-        self.mmDriver.login()
+        self._login()
         param = kwargs | {
             'channel_id':   channel_id,
             'message'   :   message,
             }
-        response = self.mmDriver.posts.create_post(options=param)
-        self.mmDriver.logout()
-        return response
+        return self.mmDriver.posts.create_post(options=param)
 
 class SlackManager(Manager):
     bold_sign, mention_bra, mention_ket = '*', '<', '>'
@@ -292,7 +341,13 @@ def get_rating(atcoderid, interval=API_interval):
     else:
         return 0
 
+def _excepthook(exc_type, exc, tb):
+    # put a timestamp in the log before the traceback
+    warn('aborted: {}'.format(exc_type.__name__))
+    sys.__excepthook__(exc_type, exc, tb)
+
 if __name__ == '__main__':
+    sys.excepthook = _excepthook
     parser = argparse.ArgumentParser()
     parser.add_argument('cycle') # e.g. 'week'
     parser.add_argument('cycle_str') # e.g. '先週'
@@ -333,6 +388,10 @@ if __name__ == '__main__':
                         help='mattermost token_id.')
     parser.add_argument('--API-interval', type=float, default=API_interval,
                         help='set intervals (sec.) between AtCoder Problems API calls (default={}).'.format(API_interval))
+    parser.add_argument('--mm-timeout', type=float, default=MM_timeout,
+                        help='timeout (sec.) of each Mattermost API request (default={}).'.format(MM_timeout))
+    parser.add_argument('--mm-retries', type=int, default=MM_retries,
+                        help='retries of a Mattermost API call on network errors/429/5xx (default={}).'.format(MM_retries))
     parser.add_argument('--id-dictionary', default=None,
                         help='Set dictironary file to transpose IDs, to keep the order.')
     args = parser.parse_args()
@@ -384,6 +443,8 @@ if __name__ == '__main__':
         config['port'] = args.port
         config['token_id'] = args.token_id
         config['token'] = token
+        config['request_timeout'] = args.mm_timeout if args.mm_timeout > 0 else None
+        config['retries'] = max(0, args.mm_retries)
         ManagerClass = MattermostManager
     else: # Slack
         team_name = url = None
