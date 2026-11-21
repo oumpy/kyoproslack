@@ -400,9 +400,15 @@ def update_dictionary(dictionary_file=None):
     if dictionary_file:
         with open(dictionary_file) as f:
             for line in f.readlines():
-                if line.strip()[0] != '#':
-                    a, b = line.split()[:2]
-                    transpose[b] = a
+                s = line.strip()
+                if not s or s[0] == '#':
+                    continue
+                fields = s.split()
+                if len(fields) < 2:
+                    warn('ignored a malformed line in {}: {!r}'.format(dictionary_file, s))
+                    continue
+                a, b = fields[:2]
+                transpose[b] = a
     return transpose
 
 
@@ -610,7 +616,13 @@ if __name__ == '__main__':
     with open(userlist_file_path, 'r') as f:
         lines = f.readlines()
         for line in lines:
-            nickname, snsid, atcoderid = line.rstrip().split('\t')[:3]
+            if not line.strip() or line.lstrip()[0] == '#':
+                continue
+            fields = line.rstrip().split('\t')
+            if len(fields) < 3:
+                warn('ignored a malformed line in {}: {!r}'.format(userlist_file_path, line.rstrip()))
+                continue
+            nickname, snsid, atcoderid = fields[:3]
             if snsid in transpose_dict:
                 snsid = transpose_dict[snsid]
             if snsid in members:
@@ -626,6 +638,8 @@ if __name__ == '__main__':
         with open(last_rec_file_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
+                if not line.strip():
+                    continue
                 atcoderid, ac, point = line.rstrip().split()[:3]
                 user_last_scores[atcoderid]['problem_count'] = int(ac)
                 user_last_scores[atcoderid]['point_sum'] = int(point)
@@ -634,6 +648,8 @@ if __name__ == '__main__':
         with open(latest_rec_file_path, 'r') as f:
             lines = f.readlines()
             for line in lines:
+                if not line.strip():
+                    continue
                 atcoderid, latest_ac, latest_point, latest_rating = (line.rstrip().split()+[None])[:4]
                 if atcoderid in user_last_scores:
                     user_last_scores[atcoderid]['latest_point'] = int(latest_point)
