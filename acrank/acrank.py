@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import requests
 from time import sleep
+import time
 import sys
 import re
 import logging
@@ -63,6 +64,10 @@ API_interval = 1.0
 MM_timeout = 60.0       # seconds per Mattermost API request (None = wait forever)
 MM_retries = 8          # retries of a Mattermost API call on transient errors (5,10,20,40,60,60,... s)
 transient_status = {429, 500, 502, 503, 504}
+unprocessed_status = {429, 503} # transient statuses meaning that the request was surely not processed
+post_lookback_ms = 5 * 60 * 1000 # how far back to look for an already-created post (allows for clock skew)
+post_settle_s = 90  # after a failure that the server may still be processing, wait this long before re-posting
+post_recheck_s = 120 # after such a re-post, check again for a late duplicate this long afterwards (at the end of the run)
 
 # mattermostautodriver logs every HTTP error body (e.g. whole nginx error pages) to stderr;
 # keep the log quiet: warn() shows the error id / page title instead (see describe_error).
@@ -127,6 +132,8 @@ class Manager(object) :
         return dict()
     def post(self, channel_id, message, **kwargs):
         return None
+    def finish(self):
+        pass
 
 class MattermostManager(Manager):
     bold_sign, mention_bra, mention_ket = '**', '', ''
@@ -135,6 +142,7 @@ class MattermostManager(Manager):
         self.retries = config.pop('retries', MM_retries)
         self.mmDriver = Driver(options=config)
         self.logged_in = False
+        self.duplicate_checks = [] # (due time, channel_id, user_id, message, since)
 
     @staticmethod
     def _is_transient(e):
@@ -146,6 +154,16 @@ class MattermostManager(Manager):
         if isinstance(e, httpx.HTTPStatusError):
             return e.response.status_code in transient_status
         return False
+
+    @staticmethod
+    def _maybe_processed(e):
+        # True if the failed request may have reached Mattermost and may still be (or have been) processed,
+        # e.g. a read timeout, a dropped connection, 500/502/504.
+        if isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)):
+            return False
+        if isinstance(e, httpx.HTTPStatusError):
+            return e.response.status_code not in unprocessed_status
+        return True
 
     def _with_retry(self, description, func, *args, **kwargs):
         for n in range(self.retries + 1):
@@ -214,13 +232,81 @@ class MattermostManager(Manager):
         users_data = self.getChannelMembersData(channel_id)
         return {user['id'] : user['username'] for user in users_data}
 
+    def _findPosts(self, channel_id, user_id, message, since):
+        # root posts by user_id with the same message, created at/after since (oldest first).
+        # ('since' selects posts *modified* after it, so check create_at as well.)
+        result = self.mmDriver.posts.get_posts_for_channel(channel_id, params={'since': since})
+        found = [post for post in (result.get('posts') or {}).values()
+                 if post.get('user_id') == user_id and not post.get('delete_at') and not post.get('root_id')
+                 and (post.get('create_at') or 0) >= since
+                 and (post.get('message') or '').strip() == message.strip()]
+        return sorted(found, key=lambda post: (post.get('create_at') or 0, post.get('id') or ''))
+
+    def _removeDuplicates(self, channel_id, user_id, message, since):
+        # after a re-post, delete any copy that a stalled earlier attempt has also created.
+        try:
+            found = self._findPosts(channel_id, user_id, message, since)
+            for post in found[1:]:
+                self.mmDriver.posts.delete_post(post['id'])
+                warn('deleted a duplicate post ({})'.format(post['id']))
+        except Exception as e:
+            warn('could not check for duplicate posts: {}'.format(describe_error(e)))
+
     def post(self, channel_id, message, **kwargs):
         self._login()
+        my_id = self.mmDriver.client.userid
+        now_ms = int(time.time() * 1000)
+        since = now_ms - post_lookback_ms
         param = kwargs | {
             'channel_id':   channel_id,
             'message'   :   message,
+            # lets the server de-duplicate a repeated request while the first one is fresh (its cache lasts 30 s)
+            'pending_post_id': '{}:{}:{}'.format(my_id, now_ms, os.getpid()),
             }
-        return self.mmDriver.posts.create_post(options=param)
+        last_error = None
+        maybe_posted = False # an earlier attempt may have been processed by the server
+        settle = False       # the last attempt may still be in progress on the server
+        for n in range(self.retries + 1):
+            if last_error is not None:
+                wait = max(retry_wait(n - 1), post_settle_s if settle else 0)
+                warn('post failed ({}); retrying in {} s ({}/{})'.format(
+                    describe_error(last_error), wait, n, self.retries))
+                sleep(wait)
+                settle = False
+                # never re-post unless we have confirmed that no earlier attempt created the post.
+                try:
+                    existing = self._findPosts(channel_id, my_id, message, since)
+                except Exception as e:
+                    if not self._is_transient(e):
+                        raise
+                    last_error = e
+                    continue
+                if existing:
+                    warn('the post had been created by an earlier attempt; not posting again')
+                    return existing[0]
+            try:
+                response = self.mmDriver.posts.create_post(options=param)
+            except Exception as e:
+                if not self._is_transient(e):
+                    raise
+                last_error = e
+                if self._maybe_processed(e):
+                    maybe_posted = settle = True
+                continue
+            if maybe_posted:
+                self._removeDuplicates(channel_id, my_id, message, since)
+                self.duplicate_checks.append((time.time() + post_recheck_s, channel_id, my_id, message, since))
+            return response
+        raise last_error
+
+    def finish(self):
+        # a stalled earlier attempt may commit even after the re-post: check once more later.
+        for due, channel_id, user_id, message, since in self.duplicate_checks:
+            wait = due - time.time()
+            if wait > 0:
+                sleep(wait)
+            self._removeDuplicates(channel_id, user_id, message, since)
+        self.duplicate_checks = []
 
 class SlackManager(Manager):
     bold_sign, mention_bra, mention_ket = '*', '<', '>'
@@ -638,3 +724,5 @@ if __name__ == '__main__':
         if os.path.islink(latest_rec_file):
             os.unlink(latest_rec_file)
         os.symlink(rec_file, latest_rec_file)
+
+    manager.finish()
