@@ -63,6 +63,8 @@ API_interval = 1.0
 
 MM_timeout = 60.0       # seconds per Mattermost API request (None = wait forever)
 MM_retries = 8          # retries of a Mattermost API call on transient errors (5,10,20,40,60,60,... s)
+HTTP_timeout = (10, 30) # (connect, read) seconds for AtCoder / AtCoder Problems
+HTTP_retries = 3        # retries of an AtCoder / AtCoder Problems request on transient errors
 transient_status = {429, 500, 502, 503, 504}
 unprocessed_status = {429, 503} # transient statuses meaning that the request was surely not processed
 post_lookback_ms = 5 * 60 * 1000 # how far back to look for an already-created post (allows for clock skew)
@@ -110,6 +112,9 @@ def _response_excerpt(response, limit=120):
     if m:
         text = m.group(1)
     return ' ({})'.format(text[:limit]) if text else ''
+
+class FetchError(Exception):
+    pass
 
 class Manager(object) :
     def __init__(self):
@@ -426,14 +431,46 @@ def get_channel_id(client, channel_name):
     else:
         return target['id']
 
-def get_rating(atcoderid, interval=API_interval):
-    urlbase = 'https://atcoder.jp/users/{}/history/json/'
+def http_get(url, interval=API_interval, retries=HTTP_retries):
+    # GET with a timeout, retrying on network errors / 429 / 5xx.
+    # Returns the response (any other status), or raises FetchError.
     API_sleep(interval)
-    contest_record = requests.get(urlbase.format(atcoderid)).json()
-    if contest_record:
-        return contest_record[-1]['NewRating']
-    else:
-        return 0
+    last_error = None
+    for n in range(retries + 1):
+        if last_error is not None:
+            wait = retry_wait(n - 1)
+            warn('GET {} failed ({}); retrying in {} s ({}/{})'.format(url, last_error, wait, n, retries))
+            sleep(wait)
+        try:
+            response = requests.get(url, timeout=HTTP_timeout)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+                requests.exceptions.ChunkedEncodingError, requests.exceptions.ContentDecodingError) as e:
+            last_error = type(e).__name__
+            continue
+        except requests.exceptions.RequestException as e:
+            raise FetchError('GET {} failed: {}: {}'.format(url, type(e).__name__, e))
+        if response.status_code in transient_status:
+            last_error = 'HTTP {}'.format(response.status_code)
+            continue
+        return response
+    raise FetchError('GET {} failed: {}'.format(url, last_error))
+
+def get_rating(atcoderid, interval=API_interval):
+    # returns the latest rating (0 if never rated), or None if unavailable for this user.
+    # raises FetchError if atcoder.jp does not respond.
+    urlbase = 'https://atcoder.jp/users/{}/history/json/'
+    response = http_get(urlbase.format(atcoderid), interval)
+    try:
+        if response.status_code // 100 != 2:
+            raise ValueError('HTTP {}'.format(response.status_code))
+        contest_record = response.json()
+        if contest_record:
+            return int(contest_record[-1]['NewRating'])
+        else:
+            return 0
+    except (ValueError, KeyError, TypeError, IndexError) as e:
+        warn('could not get the rating of {}: {}'.format(atcoderid, e))
+        return None
 
 def _excepthook(exc_type, exc, tb):
     # put a timestamp in the log before the traceback
@@ -593,35 +630,62 @@ if __name__ == '__main__':
     # get the new status from atcoder problems
     rec_file = rec_file_format.format(datetime.now().strftime(time_format), os.getpid())
     rec_file_path = rec_dir + rec_file
-    user_scores = defaultdict(dict)
-    for atcoderid in atcoder_ids:
-        for s in range(2):
-            recname = ['problem_count', 'point_sum'][s]
-            API_sleep(API_interval)
-            user_data = requests.get(urls[s].format(atcoderid))
-            if user_data.status_code // 100 == 2:
-                user_data_dic = user_data.json()
-                user_scores[atcoderid][recname] = int(user_data_dic['count'])
-                if atcoderid in new_members:
-                    user_last_scores[atcoderid][recname] = int(user_data_dic['count'])
-            else: # status error : the account has been deleted/renamed.
-                break
-        else:
-            if user_last_scores[atcoderid]['rating'] is None:
-                user_scores[atcoderid]['rating'] = get_rating(atcoderid, API_interval)
-            elif user_scores[atcoderid]['point_sum'] > user_last_scores[atcoderid]['latest_point']:
-                user_scores[atcoderid]['rating'] = get_rating(atcoderid, API_interval)
-            else:
-                user_scores[atcoderid]['rating'] = user_last_scores[atcoderid]['latest_rating']
-            if user_scores[atcoderid]['rating'] is None:
-                user_scores[atcoderid]['rating_str'] = ''
-            else:
-                user_scores[atcoderid]['rating_str'] = str(user_scores[atcoderid]['rating'])
+    user_scores = dict()
+    unfetched = [] # members whose status could not be fetched (network errors / 5xx)
+    rating_available = True
+    try:
+        for atcoderid in atcoder_ids:
+            scores = dict()
+            try:
+                for recname, url in zip(['problem_count', 'point_sum'], urls):
+                    user_data = http_get(url.format(atcoderid), API_interval)
+                    if user_data.status_code // 100 != 2: # the account has been deleted/renamed.
+                        break
+                    try:
+                        scores[recname] = int(user_data.json()['count'])
+                    except (ValueError, KeyError, TypeError) as e:
+                        raise FetchError('unexpected response from {}: {}'.format(url.format(atcoderid), e))
+            except FetchError as e:
+                unfetched.append(atcoderid)
+                if len(unfetched) >= 3 and len(unfetched) > len(user_scores):
+                    # failing for most members: AtCoder Problems itself seems to be down.
+                    raise FetchError('{} (and {} more members failed)'.format(e, len(unfetched) - 1))
+                warn('{}; {} is left out of this run'.format(e, atcoderid))
+                continue
+            if len(scores) < 2:
+                warn('{} was not found on AtCoder Problems (HTTP {}); skipped'.format(atcoderid, user_data.status_code))
+                continue
+            user_scores[atcoderid] = scores
+            if atcoderid in new_members:
+                user_last_scores[atcoderid].update(scores)
+            # the rating is always re-fetched, since it can change without new ACs.
+            rating = None
+            if rating_available:
+                try:
+                    rating = get_rating(atcoderid, API_interval)
+                except FetchError as e:
+                    warn('{}; ratings are not updated in this run'.format(e))
+                    rating_available = False
+            if rating is None and atcoderid in user_last_scores:
+                # keep the last known rating, so that a color change is detected next time
+                rating = user_last_scores[atcoderid]['latest_rating']
+            scores['rating'] = rating
+            scores['rating_str'] = '' if rating is None else str(rating)
+    except FetchError as e:
+        # AtCoder Problems is unavailable: leave all the records untouched, so that the next run covers this cycle.
+        warn('{}; aborted without posting or updating the records'.format(e))
+        sys.exit(1)
     # write the new status
     with open(rec_file_path, 'w') as f:
         for atcoderid in user_scores.keys():
             print(atcoderid, user_scores[atcoderid]['problem_count'], user_scores[atcoderid]['point_sum'], user_scores[atcoderid]['rating_str'],sep='\t', file=f)
+        # members left out keep their previous values, so that their progress is counted next time.
+        for atcoderid in unfetched:
+            if atcoderid in user_last_scores:
+                last = user_last_scores[atcoderid]
+                print(atcoderid, last['problem_count'], last['point_sum'], '' if last['latest_rating'] is None else last['latest_rating'], sep='\t', file=f)
     # back-record new members' status
+    new_members = new_members & set(user_scores.keys())
     if new_members:
         with open(last_rec_file_path, 'a') as f:
             for atcoderid in new_members:
@@ -704,9 +768,9 @@ if __name__ == '__main__':
         os.symlink(rec_file, last_rec_file)
 
     if args.postpromotion:
-        for atcoderid in atcoder_ids:
-            cur = user_scores[atcoderid]['rating']
-            prev = user_last_scores[atcoderid]['latest_rating']
+        for atcoderid, scores in user_scores.items():
+            cur = scores['rating']
+            prev = user_last_scores[atcoderid]['latest_rating'] if atcoderid in user_last_scores else None
             if (cur is not None) and (prev is not None):
                 cc = cur // 400 if cur > 0 else -1
                 pc = prev // 400 if prev > 0 else -1
