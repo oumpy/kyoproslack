@@ -738,7 +738,7 @@ if __name__ == '__main__':
     N=len(accomp_list)
     rank = 1
     for i in range(N):
-        if accomp_list[i][1:] == accomp_list[i-1][1:-1]:
+        if i > 0 and accomp_list[i][1:] == accomp_list[i-1][1:-1]:
             accomp_list[i].append(rank)
         elif i >= N_ranking and (args.sufficiency <= 0 or accomp_list[i][1] < args.sufficiency):
             ranking_list = accomp_list[:i]
