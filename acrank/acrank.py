@@ -6,6 +6,7 @@ import time
 import sys
 import re
 import logging
+import traceback
 from collections import defaultdict
 import os
 from datetime import datetime
@@ -109,7 +110,15 @@ def describe_error(e):
     status = error_status(e)
     if status is not None:
         return 'HTTP {}{}'.format(status, _error_excerpt(e))
-    return '{}: {}'.format(type(e).__name__, e)
+    if '<html' in _safe_str(e).lower(): # e.g. an nginx 4xx page with mattermostautodriver 2.x
+        return '{}{}'.format(type(e).__name__, _error_excerpt(e))
+    return '{}: {}'.format(type(e).__name__, _safe_str(e))
+
+def _safe_str(e):
+    try:
+        return str(e)
+    except Exception:
+        return '<unprintable {}>'.format(type(e).__name__)
 
 def _error_excerpt(e, limit=120):
     # the server's error id/message (JSON), or the title of an HTML error page (nginx)
@@ -127,7 +136,7 @@ def _error_excerpt(e, limit=120):
     elif getattr(e, 'error_id', None):
         return ' ({})'.format(str(e.error_id)[:limit])
     else:
-        text = str(e)
+        text = _safe_str(e)
     text = ' '.join(text.split())
     m = re.search(r'<title>(.*?)</title>', text, re.IGNORECASE)
     if m:
@@ -516,6 +525,15 @@ def replace_symlink(target, link_name):
 def _excepthook(exc_type, exc, tb):
     # put a timestamp in the log before the traceback
     warn('aborted: {}'.format(exc_type.__name__))
+    if '<html' in _safe_str(exc).lower():
+        # the message is a whole (nginx) error page: show its title only
+        sys.stderr.write('Traceback (most recent call last):\n')
+        traceback.print_tb(tb, file=sys.stderr)
+        summary = describe_error(exc)
+        if error_status(exc) is not None:
+            summary = '{}: {}'.format(exc_type.__name__, summary)
+        sys.stderr.write(summary + '\n')
+        return
     sys.__excepthook__(exc_type, exc, tb)
 
 if __name__ == '__main__':
