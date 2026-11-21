@@ -9,8 +9,12 @@ import logging
 from collections import defaultdict
 import os
 from datetime import datetime
+from urllib.parse import quote
 from slack_sdk import WebClient
-from mattermostautodriver import Driver
+try:
+    from mattermostautodriver import TypedDriver as Driver # mattermostautodriver >= 10
+except ImportError:
+    from mattermostautodriver import Driver # mattermostautodriver 2.x
 import httpx
 import argparse
 from typing import List, Dict, Optional, Union, Any
@@ -91,23 +95,40 @@ def retry_wait(n):
     # n-th retry (0-origin): 5, 10, 20, 40, 60, 60, ... seconds
     return min(60, 5 * 2 ** n)
 
-def describe_error(e):
+def error_status(e):
+    # HTTP status of a Mattermost API error, or None (e.g. network errors).
+    # mattermostautodriver 2.x and 10.11: httpx.HTTPStatusError for 429 and 5xx other than 501
+    # (other 4xx raise exceptions without the status);
+    # >= 11.1: MattermostError / InvalidMattermostError with status_code for every error status.
     if isinstance(e, httpx.HTTPStatusError):
-        return 'HTTP {}{}'.format(e.response.status_code, _response_excerpt(e.response))
+        return e.response.status_code
+    status = getattr(e, 'status_code', None)
+    return status if isinstance(status, int) else None
+
+def describe_error(e):
+    status = error_status(e)
+    if status is not None:
+        return 'HTTP {}{}'.format(status, _error_excerpt(e))
     return '{}: {}'.format(type(e).__name__, e)
 
-def _response_excerpt(response, limit=120):
+def _error_excerpt(e, limit=120):
     # the server's error id/message (JSON), or the title of an HTML error page (nginx)
-    try:
-        data = response.json()
-        if isinstance(data, dict) and (data.get('id') or data.get('message')):
-            return ' ({})'.format(str(data.get('id') or data.get('message'))[:limit])
-    except Exception:
-        pass
-    try:
-        text = ' '.join(response.text.split())
-    except Exception:
-        return ''
+    if isinstance(e, httpx.HTTPStatusError):
+        try:
+            data = e.response.json()
+            if isinstance(data, dict) and (data.get('id') or data.get('message')):
+                return ' ({})'.format(str(data.get('id') or data.get('message'))[:limit])
+        except Exception:
+            pass
+        try:
+            text = e.response.text
+        except Exception:
+            return ''
+    elif getattr(e, 'error_id', None):
+        return ' ({})'.format(str(e.error_id)[:limit])
+    else:
+        text = str(e)
+    text = ' '.join(text.split())
     m = re.search(r'<title>(.*?)</title>', text, re.IGNORECASE)
     if m:
         text = m.group(1)
@@ -145,6 +166,7 @@ class MattermostManager(Manager):
 
     def __init__(self, **config):
         self.retries = config.pop('retries', MM_retries)
+        config.setdefault('max_retries', 0) # mattermostautodriver >= 11.10 has its own retries; we retry by ourselves
         self.mmDriver = Driver(options=config)
         self.logged_in = False
         self.members_cache = dict()
@@ -153,13 +175,9 @@ class MattermostManager(Manager):
     @staticmethod
     def _is_transient(e):
         # network errors, timeouts, and 429/5xx (incl. nginx 502 while Mattermost is stalled).
-        # mattermostautodriver raises its own exceptions for 400/401/403/404/405/413/501,
-        # and re-raises httpx.HTTPStatusError for other statuses.
         if isinstance(e, (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)):
             return True
-        if isinstance(e, httpx.HTTPStatusError):
-            return e.response.status_code in transient_status
-        return False
+        return error_status(e) in transient_status
 
     @staticmethod
     def _maybe_processed(e):
@@ -167,9 +185,7 @@ class MattermostManager(Manager):
         # e.g. a read timeout, a dropped connection, 500/502/504.
         if isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)):
             return False
-        if isinstance(e, httpx.HTTPStatusError):
-            return e.response.status_code not in unprocessed_status
-        return True
+        return error_status(e) not in unprocessed_status
 
     def _with_retry(self, description, func, *args, **kwargs):
         for n in range(self.retries + 1):
@@ -195,29 +211,36 @@ class MattermostManager(Manager):
         self._login()
         return self._with_retry(description, func, *args, **kwargs)
 
+    # The API is called through the driver's HTTP client (client.get/post/delete), whose interface is
+    # the same in mattermostautodriver 2.x and >= 10. The generated endpoint methods differ between them
+    # (e.g. users.get_users(params={...}) vs users.get_users(page=..., in_channel=...)),
+    # and the typed posts.create_post() of >= 10 cannot send pending_post_id.
+    def _get(self, description, path, params=None):
+        return self._call(description, self.mmDriver.client.get, path, params=params)
+
     def getChannelId(self, channel_name, team_name) :
         team_id = self.getTeamId(team_name)
         if team_id is None:
             raise RuntimeError('team not found: {}'.format(team_name))
-        return self._call('get channel', self.mmDriver.channels.get_channel_by_name, team_id, channel_name)['id']
+        return self._get('get channel', '/api/v4/teams/{}/channels/name/{}'.format(quote(team_id, safe=''), quote(channel_name, safe='')))['id']
 
     def getTeamId(self, team_name):
-        exists = self._call('check team', self.mmDriver.teams.team_exists, team_name)
+        exists = self._get('check team', '/api/v4/teams/name/{}/exists'.format(quote(team_name, safe='')))
         if isinstance(exists, dict): # the API returns {"exists": bool}
             exists = exists.get('exists', False)
         if not exists:
             return None
-        return self._call('get team', self.mmDriver.teams.get_team_by_name, team_name)['id']
+        return self._get('get team', '/api/v4/teams/name/{}'.format(quote(team_name, safe='')))['id']
 
     def getMyId(self) :
-        return self._call('get me', self.mmDriver.users.get_user, user_id='me')['id']
+        return self._get('get me', '/api/v4/users/me')['id']
 
     def _getUsersData(self, scope_key, scope_id, per_page=200):
         # with the max of 200 per page, we need to iterate a bit over the pages
         users_data = []
         pgNo = 0
         while True:
-            page = self._call('get users', self.mmDriver.users.get_users, params={
+            page = self._get('get users', '/api/v4/users', params={
                     scope_key   :   scope_id,
                     'page'      :   str(pgNo),
                     'per_page'  :   per_page,
@@ -248,7 +271,7 @@ class MattermostManager(Manager):
     def _findPosts(self, channel_id, user_id, message, since):
         # root posts by user_id with the same message, created at/after since (oldest first).
         # ('since' selects posts *modified* after it, so check create_at as well.)
-        result = self.mmDriver.posts.get_posts_for_channel(channel_id, params={'since': since})
+        result = self.mmDriver.client.get('/api/v4/channels/{}/posts'.format(quote(channel_id, safe='')), params={'since': since})
         found = [post for post in (result.get('posts') or {}).values()
                  if post.get('user_id') == user_id and not post.get('delete_at') and not post.get('root_id')
                  and (post.get('create_at') or 0) >= since
@@ -260,7 +283,7 @@ class MattermostManager(Manager):
         try:
             found = self._findPosts(channel_id, user_id, message, since)
             for post in found[1:]:
-                self.mmDriver.posts.delete_post(post['id'])
+                self.mmDriver.client.delete('/api/v4/posts/{}'.format(quote(post['id'], safe='')))
                 warn('deleted a duplicate post ({})'.format(post['id']))
         except Exception as e:
             warn('could not check for duplicate posts: {}'.format(describe_error(e)))
@@ -298,7 +321,7 @@ class MattermostManager(Manager):
                     warn('the post had been created by an earlier attempt; not posting again')
                     return existing[0]
             try:
-                response = self.mmDriver.posts.create_post(options=param)
+                response = self.mmDriver.client.post('/api/v4/posts', options=param)
             except Exception as e:
                 if not self._is_transient(e):
                     raise
